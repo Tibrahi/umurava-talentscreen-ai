@@ -11,6 +11,9 @@ export interface ApplicantDocument extends mongoose.Document {
   resumeText?: string;
   source: "json" | "csv" | "excel" | "pdf";
   profileData?: Record<string, unknown>;
+  structuredProfile?: Record<string, unknown>;
+  duplicateOf?: mongoose.Types.ObjectId;
+  isDuplicate?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,12 +29,17 @@ const ApplicantSchema = new Schema<ApplicantDocument>(
     summary: { type: String, trim: true },
     resumeText: { type: String },
     source: { type: String, enum: ["json", "csv", "excel", "pdf"], required: true },
-    profileData: { type: Schema.Types.Mixed },
+    profileData: { type: Schema.Types.Mixed }, // Raw/unstructured data from source
+    structuredProfile: { type: Schema.Types.Mixed }, // Canonical structured profile
+    duplicateOf: { type: Schema.Types.ObjectId, ref: "Applicant", default: null },
+    isDuplicate: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
 ApplicantSchema.index({ email: 1 }, { unique: true });
+ApplicantSchema.index({ isDuplicate: 1 });
+ApplicantSchema.index({ duplicateOf: 1 });
 
 export const ApplicantModel: Model<ApplicantDocument> =
   mongoose.models.Applicant ||

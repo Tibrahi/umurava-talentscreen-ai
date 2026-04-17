@@ -1,19 +1,306 @@
+import type {
+  StructuredProfile,
+  Skill,
+  Language,
+  Experience,
+  Education,
+  Certification,
+  Project,
+  Availability,
+  SocialLinks,
+} from "./types";
+
 type UnknownRecord = Record<string, unknown>;
 
-// Central normalization keeps structured JSON/CSV/Excel/PDF ingestion consistent.
-// This prevents schema cast errors and preserves rich source details in profileData.
+/**
+ * Parse dates in various formats to YYYY-MM
+ */
+function normalizeDate(dateStr: string | unknown, format: "YYYY-MM" | "YYYY-MM-DD" = "YYYY-MM"): string {
+  if (!dateStr || typeof dateStr !== "string") return "";
+  const str = dateStr.trim();
+  if (str.toLowerCase() === "present" || str.toLowerCase() === "current") return "Present";
+  if (/^\d{4}-\d{2}(-\d{2})?$/.test(str)) return str.slice(0, format === "YYYY-MM" ? 7 : 10);
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+    const [m, d, y] = str.split("/");
+    return format === "YYYY-MM" ? `${y}-${m.padStart(2, "0")}` : `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  return "";
+}
+
+/**
+ * Normalize skill level enum
+ */
+function normalizeSkillLevel(level: unknown): "Beginner" | "Intermediate" | "Advanced" | "Expert" | undefined {
+  if (!level || typeof level !== "string") return undefined;
+  const lower = level.toLowerCase();
+  if (lower.includes("beginner") || lower.includes("junior")) return "Beginner";
+  if (lower.includes("intermediate") || lower.includes("mid")) return "Intermediate";
+  if (lower.includes("advanced") || lower.includes("senior")) return "Advanced";
+  if (lower.includes("expert") || lower.includes("master") || lower.includes("lead")) return "Expert";
+  return undefined;
+}
+
+/**
+ * Normalize language proficiency enum
+ */
+function normalizeLanguageProficiency(prof: unknown): "Basic" | "Conversational" | "Fluent" | "Native" | undefined {
+  if (!prof || typeof prof !== "string") return undefined;
+  const lower = prof.toLowerCase();
+  if (lower.includes("basic") || lower.includes("beginner")) return "Basic";
+  if (lower.includes("conversational") || lower.includes("intermediate")) return "Conversational";
+  if (lower.includes("fluent") || lower.includes("advanced")) return "Fluent";
+  if (lower.includes("native") || lower.includes("mother")) return "Native";
+  return undefined;
+}
+
+/**
+ * Parse structured skills array
+ */
+function parseSkills(skillsData: unknown): Skill[] {
+  if (!skillsData) return [];
+  if (Array.isArray(skillsData)) {
+    return skillsData
+      .map((item) => {
+        if (typeof item === "string") return { name: item };
+        if (item && typeof item === "object") {
+          const obj = item as UnknownRecord;
+          return {
+            name: String(obj.name || ""),
+            level: normalizeSkillLevel(obj.level),
+            yearsOfExperience: typeof obj.yearsOfExperience === "number" ? obj.yearsOfExperience : undefined,
+          };
+        }
+        return null;
+      })
+      .filter((s) => s && s.name) as Skill[];
+  }
+  if (typeof skillsData === "string") {
+    return skillsData
+      .split(",")
+      .map((s) => ({ name: s.trim() }))
+      .filter((s) => s.name);
+  }
+  return [];
+}
+
+/**
+ * Parse structured languages array
+ */
+function parseLanguages(langData: unknown): Language[] {
+  if (!langData) return [];
+  if (Array.isArray(langData)) {
+    return langData
+      .map((item) => {
+        if (typeof item === "string") return { name: item };
+        if (item && typeof item === "object") {
+          const obj = item as UnknownRecord;
+          return {
+            name: String(obj.name || ""),
+            proficiency: normalizeLanguageProficiency(obj.proficiency),
+          };
+        }
+        return null;
+      })
+      .filter((l) => l && l.name) as Language[];
+  }
+  return [];
+}
+
+/**
+ * Parse structured experience array
+ */
+function parseExperience(expData: unknown): Experience[] {
+  if (!expData || !Array.isArray(expData)) return [];
+  return expData
+    .map((item) => {
+      if (typeof item !== "object" || !item) return null;
+      const obj = item as UnknownRecord;
+      const company = String(obj.company || obj.Company || "");
+      const role = String(obj.role || obj.Role || obj.position || obj.Position || "");
+      if (!company || !role) return null;
+      const startDate = normalizeDate(obj.startDate || obj.start_date || obj["Start Date"]);
+      const endDateRaw = obj.endDate || obj.end_date || obj["End Date"] || "Present";
+      const endDate = normalizeDate(endDateRaw);
+      return {
+        company,
+        role,
+        startDate,
+        endDate,
+        description: String(obj.description || obj.Description || ""),
+        technologies: Array.isArray(obj.technologies)
+          ? obj.technologies.map((t) => String(t))
+          : typeof obj.technologies === "string"
+            ? obj.technologies.split(",").map((t) => t.trim())
+            : [],
+        isCurrent: endDateRaw === "Present" || String(endDateRaw).toLowerCase() === "present",
+      };
+    })
+    .filter((e) => e) as Experience[];
+}
+
+/**
+ * Parse structured education array
+ */
+function parseEducation(eduData: unknown): Education[] {
+  if (!eduData || !Array.isArray(eduData)) return [];
+  return eduData
+    .map((item) => {
+      if (typeof item === "string") return null;
+      if (typeof item !== "object" || !item) return null;
+      const obj = item as UnknownRecord;
+      const institution = String(obj.institution || obj.Institution || obj.school || obj.School || "");
+      if (!institution) return null;
+      return {
+        institution,
+        degree: String(obj.degree || obj.Degree || ""),
+        fieldOfStudy: String(obj.fieldOfStudy || obj.field_of_study || obj.Field || ""),
+        startYear: typeof obj.startYear === "number" ? obj.startYear : undefined,
+        endYear: typeof obj.endYear === "number" ? obj.endYear : undefined,
+      };
+    })
+    .filter((e) => e) as Education[];
+}
+
+/**
+ * Parse structured certifications array
+ */
+function parseCertifications(certData: unknown): Certification[] {
+  if (!certData || !Array.isArray(certData)) return [];
+  return certData
+    .map((item) => {
+      if (typeof item === "string") return { name: item };
+      if (typeof item !== "object" || !item) return null;
+      const obj = item as UnknownRecord;
+      return {
+        name: String(obj.name || obj.Name || ""),
+        issuer: String(obj.issuer || obj.Issuer || ""),
+        issueDate: normalizeDate(obj.issueDate || obj.issue_date),
+      };
+    })
+    .filter((c) => c && c.name) as Certification[];
+}
+
+/**
+ * Parse structured projects array
+ */
+function parseProjects(projData: unknown): Project[] {
+  if (!projData || !Array.isArray(projData)) return [];
+  return projData
+    .map((item) => {
+      if (typeof item !== "object" || !item) return null;
+      const obj = item as UnknownRecord;
+      const name = String(obj.name || obj.Name || "");
+      if (!name) return null;
+      return {
+        name,
+        description: String(obj.description || obj.Description || ""),
+        technologies: Array.isArray(obj.technologies)
+          ? obj.technologies.map((t) => String(t))
+          : typeof obj.technologies === "string"
+            ? obj.technologies.split(",").map((t) => t.trim())
+            : [],
+        role: String(obj.role || obj.Role || ""),
+        link: String(obj.link || obj.Link || obj.url || obj.URL || ""),
+        startDate: normalizeDate(obj.startDate || obj.start_date),
+        endDate: normalizeDate(obj.endDate || obj.end_date),
+      };
+    })
+    .filter((p) => p) as Project[];
+}
+
+/**
+ * Parse availability object
+ */
+function parseAvailability(availData: unknown): Availability | undefined {
+  if (!availData || typeof availData !== "object") return undefined;
+  const obj = availData as UnknownRecord;
+  const status = String(obj.status || "");
+  const validStatuses = ["Available", "Open to Opportunities", "Not Available"];
+  const typeStr = String(obj.type || "");
+  const validTypes = ["Full-time", "Part-time", "Contract"];
+  
+  const result: Availability = {};
+  if (validStatuses.includes(status)) result.status = status as any;
+  if (validTypes.includes(typeStr)) result.type = typeStr as any;
+  const startDate = normalizeDate(String(obj.startDate || ""), "YYYY-MM-DD");
+  if (startDate) result.startDate = startDate;
+  
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
+ * Parse social links object
+ */
+function parseSocialLinks(socialData: unknown): SocialLinks {
+  if (!socialData || typeof socialData !== "object") return {};
+  const obj = socialData as UnknownRecord;
+  return {
+    linkedin: String(obj.linkedin || obj.linkedIn || ""),
+    github: String(obj.github || obj.GitHub || ""),
+    portfolio: String(obj.portfolio || obj.Portfolio || ""),
+  };
+}
+
+/**
+ * Extract name parts
+ */
+function extractName(raw: UnknownRecord): { firstName: string; lastName: string; fullName: string } {
+  const firstName = String(raw.firstName || raw.first_name || "").trim();
+  const lastName = String(raw.lastName || raw.last_name || "").trim();
+  const fullName = String(raw.fullName || raw.full_name || raw.name || "").trim();
+  
+  if (fullName && !firstName && !lastName) {
+    const parts = fullName.split(" ");
+    return {
+      firstName: parts[0] || "",
+      lastName: parts.slice(1).join(" ") || "",
+      fullName,
+    };
+  }
+  
+  return {
+    firstName,
+    lastName,
+    fullName: fullName || `${firstName} ${lastName}`.trim() || "Unknown Candidate",
+  };
+}
+
+/**
+ * Build structured profile from raw data
+ */
+export function buildStructuredProfile(raw: UnknownRecord): StructuredProfile {
+  const { firstName, lastName, fullName } = extractName(raw);
+  
+  return {
+    firstName: firstName || undefined,
+    lastName: lastName || undefined,
+    email: String(raw.email || "").toLowerCase().trim(),
+    headline: String(raw.headline || raw.title || "").trim() || undefined,
+    bio: String(raw.bio || raw.summary || "").trim() || undefined,
+    location: String(raw.location || raw.Location || "").trim() || undefined,
+    skills: parseSkills(raw.skills),
+    languages: parseLanguages(raw.languages),
+    experience: parseExperience(raw.experience),
+    education: parseEducation(raw.education),
+    certifications: parseCertifications(raw.certifications),
+    projects: parseProjects(raw.projects),
+    availability: parseAvailability(raw.availability),
+    socialLinks: parseSocialLinks(raw.socialLinks || raw.social_links),
+  };
+}
+
+/**
+ * Central normalization - handles structured JSON/CSV/Excel/PDF ingestion
+ * Returns both flat fields (for DB indexes) and structured profile (for rich data)
+ */
 export const normalizeApplicantPayload = (raw: UnknownRecord) => {
-  const firstName = String(raw.firstName ?? "").trim();
-  const lastName = String(raw.lastName ?? "").trim();
-  const combinedName = `${firstName} ${lastName}`.trim();
-  const nameCandidate = raw.fullName ?? raw.name ?? combinedName;
-  const fullName = String(nameCandidate || "Unknown Candidate").trim();
-  const email = String(
-    raw.email ?? `${fullName.toLowerCase().replaceAll(" ", ".")}@unknown.local`
-  )
+  const { firstName, lastName, fullName } = extractName(raw);
+  
+  const email = String(raw.email || `${fullName.toLowerCase().replaceAll(" ", ".")}@unknown.local`)
     .trim()
     .toLowerCase();
 
+  // Calculate years of experience from experience array or direct field
   const experienceArray = Array.isArray(raw.experience) ? raw.experience : [];
   const yearsFromExperienceObjects = experienceArray.reduce((acc, entry) => {
     if (!entry || typeof entry !== "object") return acc;
@@ -31,59 +318,44 @@ export const normalizeApplicantPayload = (raw: UnknownRecord) => {
     Number(raw.yearsOfExperience ?? raw.experienceYears ?? raw.experience ?? 0) ||
     Math.round(yearsFromExperienceObjects);
 
+  // Flatten education array for legacy flat field
   const education = Array.isArray(raw.education)
     ? raw.education
-        .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+        .map((item) => (typeof item === "string" ? item : (item as UnknownRecord)?.degree || JSON.stringify(item)))
         .join(" | ")
     : typeof raw.education === "string"
       ? raw.education
       : "Not provided";
 
-  const skills = Array.isArray(raw.skills)
-    ? raw.skills.map((item) => {
-        if (typeof item === "string") return item;
-        if (item && typeof item === "object") {
-          const obj = item as UnknownRecord;
-          return String(obj.name ?? JSON.stringify(item));
-        }
-        return JSON.stringify(item);
-      })
-    : typeof raw.skills === "string"
-      ? raw.skills
-          .split(",")
-          .map((entry) => entry.trim())
-          .filter(Boolean)
-      : [];
+  // Flatten skills array for legacy flat field
+  const skills = parseSkills(raw.skills).map((s) => s.name);
 
-  const headline = typeof raw.headline === "string" ? raw.headline : "";
-  const bio = typeof raw.bio === "string" ? raw.bio : "";
-  const location = typeof raw.location === "string" ? raw.location : "";
+  const headline = String(raw.headline || raw.title || "").trim();
+  const bio = String(raw.bio || raw.summary || "").trim();
   const summary = headline || bio || (typeof raw.summary === "string" ? raw.summary : "");
 
+  // Build canonical structured profile
+  const structuredProfile = buildStructuredProfile(raw);
+
   return {
+    // Flat fields for legacy compatibility & DB indexing
     fullName,
     email,
-    phone: typeof raw.phone === "string" ? raw.phone : "",
+    phone: String(raw.phone || "").trim() || undefined,
     yearsOfExperience,
     education,
     skills,
     summary,
-    resumeText: typeof raw.resumeText === "string" ? raw.resumeText : "",
+    resumeText: String(raw.resumeText || "").trim() || undefined,
     source: String(raw.source ?? "json") as "json" | "csv" | "excel" | "pdf",
+    
+    // Rich structured data (canonical format)
+    structuredProfile,
+    
+    // Preserve raw data for debugging/re-parsing
     profileData: {
-      firstName,
-      lastName,
-      headline,
-      bio,
-      location,
-      experience: experienceArray,
-      education: raw.education ?? [],
-      certifications: raw.certifications ?? [],
-      projects: raw.projects ?? [],
-      availability: raw.availability ?? {},
-      socialLinks: raw.socialLinks ?? {},
-      languages: raw.languages ?? [],
       raw,
+      parseDate: new Date().toISOString(),
     },
   };
 };
