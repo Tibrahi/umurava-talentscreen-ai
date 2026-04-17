@@ -17,6 +17,8 @@ import {
 } from "@/redux/services/api";
 import { normalizeApplicantPayload, buildStructuredProfile } from "@/lib/normalize-applicant";
 import { detectDuplicates, calculateDuplicateSimilarity, mergeApplicants } from "@/lib/duplicate-detection";
+import { ApplicantDetailModal } from "@/components/applicants/applicant-detail-modal";
+import { DataMigrationPanel } from "@/components/applicants/data-migration-panel";
 import type { Applicant, StructuredProfile } from "@/lib/types";
 
 /**
@@ -390,6 +392,11 @@ export default function ApplicantsPage() {
         />
       )}
 
+      {/* Data Migration Panel */}
+      {applicants && applicants.length > 0 && (
+        <DataMigrationPanel />
+      )}
+
       {/* Input Section */}
       <section className="rounded-xl border border-border bg-white p-5">
         <div className="flex flex-wrap gap-2">
@@ -671,8 +678,6 @@ export default function ApplicantsPage() {
                   onCheckboxChange={handleCheckboxChange}
                   onRowClick={() => {
                     setSelectedApplicantId(applicant._id);
-                    setPreviewMode("overview");
-                    setPreviewOpen(true);
                   }}
                   onEdit={(app) => {
                     setEditingId(app._id);
@@ -1131,6 +1136,13 @@ export default function ApplicantsPage() {
           })()}
         </aside>
       )}
+
+      {/* Applicant Detail Modal */}
+      <ApplicantDetailModal
+        applicant={selectedApplicant ?? null}
+        isOpen={!!selectedApplicantId && !previewOpen}
+        onClose={() => setSelectedApplicantId(null)}
+      />
     </div>
   );
 }
