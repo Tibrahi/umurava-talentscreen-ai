@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,138 @@ import {
 import { normalizeApplicantPayload, buildStructuredProfile } from "@/lib/normalize-applicant";
 import { detectDuplicates, calculateDuplicateSimilarity, mergeApplicants } from "@/lib/duplicate-detection";
 import type { Applicant, StructuredProfile } from "@/lib/types";
+
+/**
+ * Render parsed data safely without escaping, preserving all values
+ */
+function renderParsedValue(value: unknown, maxDepth = 3, currentDepth = 0): React.ReactNode {
+  if (currentDepth > maxDepth) return <span className="text-gray-500 text-xs">...</span>;
+
+  if (value === null || value === undefined) {
+    return <span className="text-gray-400">—</span>;
+  }
+
+  if (typeof value === "string") {
+    return <span className="text-gray-900 break-words">{value}</span>;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return <span className="text-gray-900 font-mono">{String(value)}</span>;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-gray-400">[ empty ]</span>;
+    return (
+      <div className="space-y-1 ml-2 border-l-2 border-gray-200 pl-2">
+        {value.map((item, idx) => (
+          <div key={idx} className="text-sm">
+            {renderParsedValue(item, maxDepth, currentDepth + 1)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value).filter(([, v]) => v !== null && v !== undefined);
+    if (entries.length === 0) return <span className="text-gray-400">&#123; empty &#125;</span>;
+    return (
+      <div className="space-y-1 ml-2 border-l-2 border-gray-200 pl-2 text-xs">
+        {entries.map(([key, val]) => (
+          <div key={key} className="flex gap-2">
+            <span className="font-semibold text-blue-600 flex-shrink-0">{key}:</span>
+            <div className="flex-grow min-w-0">{renderParsedValue(val, maxDepth, currentDepth + 1)}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <span className="text-gray-500 text-xs">unknown</span>;
+}
+
+/**
+ * Memoized table row component for better performance
+ */
+const ApplicantTableRow = React.memo(
+  ({
+    applicant,
+    isSelected,
+    onCheckboxChange,
+    onRowClick,
+    onEdit,
+    onDelete,
+  }: {
+    applicant: Applicant;
+    isSelected: boolean;
+    onCheckboxChange: (id: string) => void;
+    onRowClick: () => void;
+    onEdit: (applicant: Applicant) => void;
+    onDelete: (applicant: Applicant) => Promise<void>;
+  }) => {
+    const [deleting, setDeleting] = React.useState(false);
+    const isDuplicate = applicant.isDuplicate;
+    const rowClass = isDuplicate ? "bg-yellow-50 opacity-75" : "";
+
+    const handleDelete = React.useCallback(async () => {
+      try {
+        setDeleting(true);
+        await onDelete(applicant);
+      } finally {
+        setDeleting(false);
+      }
+    }, [applicant, onDelete]);
+
+    return (
+      <tr
+        className={`border-b border-border cursor-pointer hover:bg-muted transition ${rowClass}`}
+        onClick={onRowClick}
+      >
+        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onCheckboxChange(applicant._id)}
+            className="h-4 w-4 cursor-pointer"
+          />
+        </td>
+        <td className="px-3 py-2 font-medium truncate">{applicant.fullName}</td>
+        <td className="px-3 py-2 text-xs text-gray-600 truncate">{applicant.email}</td>
+        <td className="px-3 py-2 text-center">
+          <Badge variant="secondary">{applicant.yearsOfExperience}y</Badge>
+        </td>
+        <td className="px-3 py-2 text-xs truncate">
+          {applicant.skills?.slice(0, 2).join(", ")}
+          {applicant.skills && applicant.skills.length > 2 && ` +${applicant.skills.length - 2}`}
+        </td>
+        <td className="px-3 py-2">
+          <Badge variant="primary">{applicant.source}</Badge>
+        </td>
+        <td className="px-3 py-2">
+          {isDuplicate ? (
+            <Badge variant="secondary">🔗 Duplicate</Badge>
+          ) : applicant.structuredProfile ? (
+            <Badge variant="secondary">✅ Structured</Badge>
+          ) : (
+            <Badge variant="secondary">⚠️ Basic</Badge>
+          )}
+        </td>
+        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => onEdit(applicant)}>
+              Edit
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "..." : "Delete"}
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+);
+
+ApplicantTableRow.displayName = "ApplicantTableRow";
 
 export default function ApplicantsPage() {
   const { data: applicants, error: applicantsError, refetch } = useGetApplicantsQuery();
@@ -39,21 +171,25 @@ export default function ApplicantsPage() {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [mergingApplicants, setMergingApplicants] = useState(false);
 
-  // Detect potential duplicates
+  // Detect potential duplicates with memoization
   const duplicateGroups = useMemo(() => {
     return applicants ? detectDuplicates(applicants, 0.7) : new Map();
   }, [applicants]);
 
   const hasDuplicates = duplicateGroups.size > 0;
 
-  const onStructuredJsonSubmit = async () => {
+  // Memoize selected applicant to prevent unnecessary re-renders
+  const selectedApplicant = useMemo(() => {
+    return applicants?.find((entry) => entry._id === selectedApplicantId);
+  }, [applicants, selectedApplicantId]);
+
+  const onStructuredJsonSubmit = useCallback(async () => {
     try {
       if (!jsonValue.trim()) return;
       setStatus({ type: "info", text: "Parsing and saving profile(s)..." });
       
       let candidates: Record<string, unknown>[] = [];
       
-      // Try parsing as single object first, then as array
       try {
         const parsed = JSON.parse(jsonValue);
         if (Array.isArray(parsed)) {
@@ -70,7 +206,6 @@ export default function ApplicantsPage() {
         return;
       }
 
-      // If editing a single applicant, only update that one
       if (editingId && candidates.length === 1) {
         const normalized = normalizeApplicantPayload(candidates[0]);
         await updateApplicant({
@@ -84,7 +219,6 @@ export default function ApplicantsPage() {
         setEditingId(null);
         setStatus({ type: "success", text: "Profile updated successfully." });
       } else if (candidates.length === 1) {
-        // Single applicant create
         const normalized = normalizeApplicantPayload(candidates[0]);
         await createApplicant({
           ...normalized,
@@ -93,7 +227,6 @@ export default function ApplicantsPage() {
         setJsonValue("");
         setStatus({ type: "success", text: "Profile saved successfully." });
       } else {
-        // Batch create multiple applicants
         const normalized = candidates.map((candidate) => {
           const norm = normalizeApplicantPayload(candidate);
           return {
@@ -114,82 +247,96 @@ export default function ApplicantsPage() {
         text: getErrorMessage(error, "Invalid JSON or server error while saving profile."),
       });
     }
-  };
+  }, [jsonValue, editingId, updateApplicant, createApplicant, bulkApplicants, refetch]);
 
-  const normalizeRows = (rows: Array<Record<string, string>>, source: "csv" | "excel") =>
-    rows
-      .filter((row) => Object.values(row).some((v) => v?.trim()))
-      .map((row) => {
-        const normalized = normalizeApplicantPayload({
-          ...row,
-          source,
-        });
-        return normalized;
-      });
+  const normalizeRows = useCallback(
+    (rows: Array<Record<string, string>>, source: "csv" | "excel") =>
+      rows
+        .filter((row) => Object.values(row).some((v) => v?.trim()))
+        .map((row) => {
+          const normalized = normalizeApplicantPayload({
+            ...row,
+            source,
+          });
+          return normalized;
+        }),
+    []
+  );
 
-  const onCsvUpload = async (file: File) => {
-    try {
-      setStatus({ type: "info", text: "Processing CSV upload..." });
-      const text = await file.text();
-      const parsed = Papa.parse<Record<string, string>>(text, { header: true });
-      const normalized = normalizeRows(parsed.data, "csv");
-      await bulkApplicants({ applicants: normalized }).unwrap();
-      setStatus({ type: "success", text: "CSV applicants uploaded and parsed successfully." });
-      await refetch();
-    } catch (error) {
-      setStatus({ type: "error", text: getErrorMessage(error, "CSV upload failed. Please verify file structure.") });
-    }
-  };
+  const onCsvUpload = useCallback(
+    async (file: File) => {
+      try {
+        setStatus({ type: "info", text: "Processing CSV upload..." });
+        const text = await file.text();
+        const parsed = Papa.parse<Record<string, string>>(text, { header: true });
+        const normalized = normalizeRows(parsed.data, "csv");
+        await bulkApplicants({ applicants: normalized }).unwrap();
+        setStatus({ type: "success", text: "CSV applicants uploaded and parsed successfully." });
+        await refetch();
+      } catch (error) {
+        setStatus({ type: "error", text: getErrorMessage(error, "CSV upload failed. Please verify file structure.") });
+      }
+    },
+    [normalizeRows, bulkApplicants, refetch]
+  );
 
-  const onExcelUpload = async (file: File) => {
-    try {
-      setStatus({ type: "info", text: "Processing Excel upload..." });
-      const wb = XLSX.read(await file.arrayBuffer());
-      const firstSheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, string>>(firstSheet);
-      const normalized = normalizeRows(rows, "excel");
-      await bulkApplicants({ applicants: normalized }).unwrap();
-      setStatus({ type: "success", text: "Excel applicants uploaded and parsed successfully." });
-      await refetch();
-    } catch (error) {
-      setStatus({ type: "error", text: getErrorMessage(error, "Excel upload failed. Please verify file structure.") });
-    }
-  };
+  const onExcelUpload = useCallback(
+    async (file: File) => {
+      try {
+        setStatus({ type: "info", text: "Processing Excel upload..." });
+        const wb = XLSX.read(await file.arrayBuffer());
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, string>>(firstSheet);
+        const normalized = normalizeRows(rows, "excel");
+        await bulkApplicants({ applicants: normalized }).unwrap();
+        setStatus({ type: "success", text: "Excel applicants uploaded and parsed successfully." });
+        await refetch();
+      } catch (error) {
+        setStatus({ type: "error", text: getErrorMessage(error, "Excel upload failed. Please verify file structure.") });
+      }
+    },
+    [normalizeRows, bulkApplicants, refetch]
+  );
 
-  const handleCheckboxChange = (id: string) => {
-    const newChecked = new Set(selectedCheckboxes);
-    if (newChecked.has(id)) {
-      newChecked.delete(id);
-    } else {
-      newChecked.add(id);
-    }
-    setSelectedCheckboxes(newChecked);
-  };
+  const handleCheckboxChange = useCallback((id: string) => {
+    setSelectedCheckboxes((prev) => {
+      const newChecked = new Set(prev);
+      if (newChecked.has(id)) {
+        newChecked.delete(id);
+      } else {
+        newChecked.add(id);
+      }
+      return newChecked;
+    });
+  }, []);
 
-  const handleSelectAll = () => {
-    if (selectedCheckboxes.size === applicants?.length) {
-      setSelectedCheckboxes(new Set());
-    } else {
-      setSelectedCheckboxes(new Set(applicants?.map((a) => a._id) || []));
-    }
-  };
+  const handleSelectAll = useCallback(() => {
+    setSelectedCheckboxes((prev) => {
+      if (prev.size === applicants?.length) {
+        return new Set();
+      } else {
+        return new Set(applicants?.map((a) => a._id) || []);
+      }
+    });
+  }, [applicants]);
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = useCallback(async () => {
     if (selectedCheckboxes.size === 0) return;
     try {
       setStatus({ type: "info", text: "Deleting selected applicants..." });
       for (const id of selectedCheckboxes) {
         await deleteApplicant(id).unwrap();
       }
+      const count = selectedCheckboxes.size;
       setSelectedCheckboxes(new Set());
-      setStatus({ type: "success", text: `Deleted ${selectedCheckboxes.size} applicants.` });
+      setStatus({ type: "success", text: `Deleted ${count} applicants.` });
       await refetch();
     } catch (error) {
       setStatus({ type: "error", text: getErrorMessage(error, "Batch delete failed.") });
     }
-  };
+  }, [selectedCheckboxes, deleteApplicant, refetch]);
 
-  const handleMergeDuplicates = async () => {
+  const handleMergeDuplicates = useCallback(async () => {
     if (selectedCheckboxes.size < 2) {
       setStatus({ type: "error", text: "Please select at least 2 applicants to merge." });
       return;
@@ -213,7 +360,6 @@ export default function ApplicantsPage() {
           data: merged,
         }).unwrap();
 
-        // Mark secondary as duplicate
         await updateApplicant({
           id: secondary._id,
           data: {
@@ -232,7 +378,7 @@ export default function ApplicantsPage() {
     } finally {
       setMergingApplicants(false);
     }
-  };
+  }, [selectedCheckboxes, applicants, updateApplicant, refetch]);
 
   return (
     <div className="space-y-6">
@@ -517,84 +663,34 @@ export default function ApplicantsPage() {
               </tr>
             </thead>
             <tbody>
-              {(applicants ?? []).map((applicant) => {
-                const isDuplicate = applicant.isDuplicate;
-                const rowClass = isDuplicate ? "bg-yellow-50 opacity-75" : "";
-                return (
-                  <tr
-                    key={applicant._id}
-                    className={`border-b border-border cursor-pointer hover:bg-muted ${rowClass}`}
-                    onClick={() => {
-                      setSelectedApplicantId(applicant._id);
-                      setPreviewMode("overview");
-                      setPreviewOpen(true);
-                    }}
-                  >
-                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedCheckboxes.has(applicant._id)}
-                        onChange={() => handleCheckboxChange(applicant._id)}
-                        className="h-4 w-4 cursor-pointer"
-                      />
-                    </td>
-                    <td className="px-3 py-2 font-medium">{applicant.fullName}</td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{applicant.email}</td>
-                    <td className="px-3 py-2 text-center">
-                      <Badge variant="secondary">{applicant.yearsOfExperience}y</Badge>
-                    </td>
-                    <td className="px-3 py-2 text-xs">
-                      {applicant.skills?.slice(0, 2).join(", ")}
-                      {applicant.skills && applicant.skills.length > 2 && ` +${applicant.skills.length - 2}`}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge variant="primary">{applicant.source}</Badge>
-                    </td>
-                    <td className="px-3 py-2">
-                      {isDuplicate ? (
-                        <Badge variant="secondary">🔗 Duplicate</Badge>
-                      ) : applicant.structuredProfile ? (
-                        <Badge variant="secondary">✅ Structured</Badge>
-                      ) : (
-                        <Badge variant="secondary">⚠️ Basic</Badge>
-                      )}
-                    </td>
-                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setEditingId(applicant._id);
-                            setMode("json");
-                            const profile = applicant.structuredProfile || applicant;
-                            setJsonValue(JSON.stringify(profile, null, 2));
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={async (event) => {
-                            event.stopPropagation();
-                            try {
-                              await deleteApplicant(applicant._id).unwrap();
-                              setStatus({ type: "success", text: "Applicant deleted successfully." });
-                              await refetch();
-                            } catch (error) {
-                              setStatus({ type: "error", text: getErrorMessage(error, "Delete failed.") });
-                            }
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {(applicants ?? []).map((applicant) => (
+                <ApplicantTableRow
+                  key={applicant._id}
+                  applicant={applicant}
+                  isSelected={selectedCheckboxes.has(applicant._id)}
+                  onCheckboxChange={handleCheckboxChange}
+                  onRowClick={() => {
+                    setSelectedApplicantId(applicant._id);
+                    setPreviewMode("overview");
+                    setPreviewOpen(true);
+                  }}
+                  onEdit={(app) => {
+                    setEditingId(app._id);
+                    setMode("json");
+                    const profile = app.structuredProfile || app;
+                    setJsonValue(JSON.stringify(profile, null, 2));
+                  }}
+                  onDelete={async (app) => {
+                    try {
+                      await deleteApplicant(app._id).unwrap();
+                      setStatus({ type: "success", text: "Applicant deleted successfully." });
+                      await refetch();
+                    } catch (error) {
+                      setStatus({ type: "error", text: getErrorMessage(error, "Delete failed.") });
+                    }
+                  }}
+                />
+              ))}
             </tbody>
           </table>
           {!applicants?.length && <p className="py-4 text-sm text-gray-600">No applicants yet.</p>}
@@ -626,7 +722,7 @@ export default function ApplicantsPage() {
           </div>
 
           {(() => {
-            const selected = applicants?.find((entry) => entry._id === selectedApplicantId);
+            const selected = selectedApplicant;
             if (!selected) return null;
 
             const profile = (selected.structuredProfile || selected) as StructuredProfile;
@@ -683,6 +779,44 @@ export default function ApplicantsPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* All Parsed Raw Data Display */}
+                    {selected.profileData && Object.keys(selected.profileData).length > 0 && (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                        <h4 className="font-semibold text-emerald-900 mb-3">📊 Complete Parsed Data</h4>
+                        <div className="space-y-3 text-sm max-h-96 overflow-y-auto">
+                          {Object.entries(selected.profileData).map(([key, value]) => {
+                            // Skip already displayed fields
+                            if (
+                              [
+                                "fullName",
+                                "email",
+                                "phone",
+                                "yearsOfExperience",
+                                "education",
+                                "firstName",
+                                "lastName",
+                                "location",
+                              ].includes(key)
+                            ) {
+                              return null;
+                            }
+
+                            return (
+                              <div
+                                key={key}
+                                className="p-3 bg-white rounded border border-emerald-100 hover:border-emerald-300 transition"
+                              >
+                                <div className="font-semibold text-emerald-700 mb-1">{key}</div>
+                                <div className="text-gray-900 ml-2 border-l-2 border-emerald-200 pl-3">
+                                  {renderParsedValue(value)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Headline & Bio */}
                     {(profile.headline || profile.bio || selected.summary || selected.resumeText) && (

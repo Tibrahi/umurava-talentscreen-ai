@@ -62,8 +62,73 @@ function getEmailDomain(email: string): string {
 }
 
 /**
+ * Deep comparison of all parsed data fields
+ */
+function compareAllParsedData(applicant1: Applicant, applicant2: Applicant): number {
+  let matchedFields = 0;
+  let totalFields = 0;
+
+  // Get all top-level fields from both applicants
+  const fields = new Set<string>();
+  Object.keys(applicant1).forEach((k) => fields.add(k));
+  Object.keys(applicant2).forEach((k) => fields.add(k));
+
+  // Compare each field
+  for (const field of fields) {
+    if (
+      field === "_id" ||
+      field === "createdAt" ||
+      field === "updatedAt" ||
+      field === "isDuplicate" ||
+      field === "duplicateOf"
+    ) {
+      continue; // Skip metadata fields
+    }
+
+    const val1 = applicant1[field as keyof Applicant];
+    const val2 = applicant2[field as keyof Applicant];
+
+    if (val1 === undefined || val2 === undefined) continue;
+
+    totalFields++;
+
+    // Handle arrays
+    if (Array.isArray(val1) && Array.isArray(val2)) {
+      if (val1.length === val2.length) {
+        const items1 = val1.map((v) => JSON.stringify(v).toLowerCase()).sort();
+        const items2 = val2.map((v) => JSON.stringify(v).toLowerCase()).sort();
+        if (JSON.stringify(items1) === JSON.stringify(items2)) {
+          matchedFields++;
+        }
+      }
+    }
+    // Handle objects
+    else if (typeof val1 === "object" && typeof val2 === "object" && val1 !== null && val2 !== null) {
+      if (JSON.stringify(val1).toLowerCase() === JSON.stringify(val2).toLowerCase()) {
+        matchedFields++;
+      }
+    }
+    // Handle strings and primitives
+    else if (typeof val1 === "string" || typeof val1 === "number") {
+      const str1 = String(val1).toLowerCase().trim();
+      const str2 = String(val2).toLowerCase().trim();
+      if (str1 === str2) {
+        matchedFields++;
+      } else {
+        // Check similarity for string fields
+        const similarity = stringSimilarity(str1, str2);
+        if (similarity > 0.85) matchedFields += similarity;
+      }
+    }
+  }
+
+  return totalFields > 0 ? matchedFields / totalFields : 0;
+}
+
+/**
  * Check if two applicants might be duplicates
  * Returns similarity score (0-1)
+ * Compares ALL parsed data, not just skills
  */
 export function calculateDuplicateSimilarity(applicant1: Applicant, applicant2: Applicant): number {
   if (applicant1._id === applicant2._id) return 0; // Same person, not a duplicate
@@ -77,8 +142,8 @@ export function calculateDuplicateSimilarity(applicant1: Applicant, applicant2: 
       return 1; // Exact email match = definite duplicate
     }
     const emailSimilarity = stringSimilarity(applicant1.email, applicant2.email);
-    score += emailSimilarity * 0.4;
-    weightSum += 0.4;
+    score += emailSimilarity * 0.35;
+    weightSum += 0.35;
   }
 
   // Name match (high weight)
@@ -86,8 +151,8 @@ export function calculateDuplicateSimilarity(applicant1: Applicant, applicant2: 
     const normalizedName1 = normalizeNameForComparison(applicant1.fullName);
     const normalizedName2 = normalizeNameForComparison(applicant2.fullName);
     const nameSimilarity = stringSimilarity(normalizedName1, normalizedName2);
-    score += nameSimilarity * 0.35;
-    weightSum += 0.35;
+    score += nameSimilarity * 0.3;
+    weightSum += 0.3;
   }
 
   // Phone match (medium weight)
@@ -100,18 +165,35 @@ export function calculateDuplicateSimilarity(applicant1: Applicant, applicant2: 
     }
   }
 
-  // Skills overlap (low-medium weight)
+  // Skills overlap (medium weight)
   if (applicant1.skills?.length && applicant2.skills?.length) {
     const skills1 = new Set(applicant1.skills.map((s) => s.toLowerCase()));
     const skills2 = new Set(applicant2.skills.map((s) => s.toLowerCase()));
     const intersection = [...skills1].filter((s) => skills2.has(s)).length;
     const union = new Set([...skills1, ...skills2]).size;
     const skillsSimilarity = union > 0 ? intersection / union : 0;
-    score += skillsSimilarity * 0.1;
-    weightSum += 0.1;
+    score += skillsSimilarity * 0.15;
+    weightSum += 0.15;
   }
 
-  return weightSum > 0 ? score / weightSum : 0;
+  // Deep comparison of ALL parsed data (new - most important)
+  const parsedDataSimilarity = compareAllParsedData(applicant1, applicant2);
+  score += parsedDataSimilarity * 0.3;
+  weightSum += 0.3;
+
+  // Also check structured profiles if they exist
+  if (applicant1.structuredProfile && applicant2.structuredProfile) {
+    const struct1 = applicant1.structuredProfile as Record<string, unknown>;
+    const struct2 = applicant2.structuredProfile as Record<string, unknown>;
+    const structJson1 = JSON.stringify(struct1).toLowerCase();
+    const structJson2 = JSON.stringify(struct2).toLowerCase();
+    if (structJson1 === structJson2) {
+      score += 0.35;
+      weightSum += 0.35;
+    }
+  }
+
+  return Math.min(weightSum > 0 ? score / weightSum : 0, 1);
 }
 
 /**
