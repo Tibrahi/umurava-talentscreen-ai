@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { Button } from "@/components/ui/button";
 import { ActionMessage } from "@/components/ui/action-message";
+import { JobCard } from "@/components/ui/job-card";
+import { JobDetailPanel } from "@/components/ui/job-detail-panel";
+import { Badge } from "@/components/ui/badge";
 import { splitCommaValues } from "@/lib/utils";
 import type { JobInput } from "@/lib/types";
 import {
@@ -12,6 +15,7 @@ import {
   useGetJobsQuery,
   useUpdateJobMutation,
 } from "@/redux/services/api";
+import { Briefcase, Plus } from "lucide-react";
 
 const initialForm: JobInput = {
   title: "",
@@ -112,121 +116,167 @@ export default function JobsPage() {
 
   return (
     <>
-    <div className="space-y-6">
-      <section className="rounded-xl border border-border bg-white p-5">
-        <h2 className="text-xl font-bold text-primary">{title}</h2>
-        {status && <div className="mt-3"><ActionMessage type={status.type} message={status.text} /></div>}
-        {jobsError && (
-          <div className="mt-3">
-            <ActionMessage type="error" message={jobsErrorMessage} />
+      <div className="space-y-6">
+        {/* Create/Edit Job Section */}
+        <section className="rounded-2xl border-2 border-border bg-gradient-to-br from-white to-primary/5 p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Briefcase className="h-5 w-5 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold text-primary">{title}</h2>
           </div>
-        )}
-        <form className="mt-4 space-y-3" onSubmit={onSubmit}>
-          {[
-            ["title", "Job Title"],
-            ["description", "Description"],
-            ["education", "Education Requirement"],
-            ["location", "Location"],
-            ["employmentType", "Employment Type"],
-          ].map(([key, label]) => (
-            <div key={key}>
-              <label className="text-sm font-semibold text-black">{label}</label>
-              <input
-                className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-                value={form[key as keyof JobInput] as string}
+
+          {status && (
+            <div className="mb-3">
+              <ActionMessage type={status.type} message={status.text} />
+            </div>
+          )}
+
+          {jobsError && (
+            <div className="mb-3">
+              <ActionMessage type="error" message={jobsErrorMessage} />
+            </div>
+          )}
+
+          <form className="space-y-4" onSubmit={onSubmit}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                ["title", "Job Title"],
+                ["education", "Education Requirement"],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <label className="block text-sm font-semibold text-black mb-2">{label}</label>
+                  <input
+                    className="w-full rounded-lg border-2 border-border bg-white px-3 py-2 text-sm transition focus:border-primary focus:outline-none"
+                    value={form[key as keyof JobInput] as string}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, [key]: event.target.value }))
+                    }
+                    required
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                ["location", "Location"],
+                ["employmentType", "Employment Type"],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <label className="block text-sm font-semibold text-black mb-2">{label}</label>
+                  <input
+                    className="w-full rounded-lg border-2 border-border bg-white px-3 py-2 text-sm transition focus:border-primary focus:outline-none"
+                    value={form[key as keyof JobInput] as string}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, [key]: event.target.value }))
+                    }
+                    required
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-black mb-2">
+                Job Description
+              </label>
+              <textarea
+                className="w-full rounded-lg border-2 border-border bg-white px-3 py-2 text-sm transition focus:border-primary focus:outline-none resize-none h-32"
+                value={form.description}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, [key]: event.target.value }))
+                  setForm((prev) => ({ ...prev, description: event.target.value }))
                 }
+                placeholder="Describe the role, responsibilities, and requirements..."
                 required
               />
+              <p className="text-xs text-gray-600 mt-1">
+                Tip: Use headings and bullet points for better formatting
+              </p>
             </div>
-          ))}
-          <div>
-            <label className="text-sm font-semibold text-black">Required Skills (comma separated)</label>
-            <input
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-              value={skillDraft}
-              onChange={(event) => setSkillDraft(event.target.value)}
-              placeholder="TypeScript, Node.js, ATS"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-black">Minimum Experience</label>
-            <input
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
-              value={experienceDraft}
-              onChange={(event) => setExperienceDraft(event.target.value)}
-              placeholder="e.g. 3 years, 2+ years"
-            />
-          </div>
-          <Button type="submit" disabled={creating}>
-            {editingId ? "Update Job" : "Create Job"}
-          </Button>
-        </form>
-      </section>
 
-      <section className="rounded-xl border border-border bg-white p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-semibold text-black">Job Listings</h3>
-          <div className="flex gap-2">
-            <Button
-              variant={jobViewMode === "card" ? "primary" : "secondary"}
-              onClick={() => setJobViewMode("card")}
-            >
-              Card View
-            </Button>
-            <Button
-              variant={jobViewMode === "row" ? "primary" : "secondary"}
-              onClick={() => setJobViewMode("row")}
-            >
-              Row View
-            </Button>
-          </div>
-        </div>
-
-        <div className={`mt-4 ${jobViewMode === "card" ? "grid gap-3 md:grid-cols-2" : "space-y-3"}`}>
-          {(jobs ?? []).map((job) => (
-            <article
-              key={job._id}
-              className={`rounded-2xl border border-white/40 bg-white/70 p-4 shadow-sm backdrop-blur-sm transition hover:border-primary/40 hover:shadow-md ${
-                jobViewMode === "row" ? "flex items-start justify-between gap-4" : ""
-              }`}
-              onClick={() => {
-                setSelectedJobId(job._id);
-                setJobPreviewOpen(true);
-              }}
-            >
-              <div className="flex-1">
-                <h4 className="font-semibold text-primary">{job.title}</h4>
-                <div className={`mt-2 ${expanded[job._id] ? "" : "line-clamp-3"}`}>
-                  {renderDescription(job.description)}
-                </div>
-                <button
-                  type="button"
-                  className="mt-2 text-xs font-semibold text-primary underline"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setExpanded((prev) => ({ ...prev, [job._id]: !prev[job._id] }));
-                    setSelectedJobId(job._id);
-                  }}
-                >
-                  {expanded[job._id] ? "Show less" : "Show more"}
-                </button>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {job.requiredSkills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold text-black mb-2">
+                  Required Skills (comma separated)
+                </label>
+                <input
+                  className="w-full rounded-lg border-2 border-border bg-white px-3 py-2 text-sm transition focus:border-primary focus:outline-none"
+                  value={skillDraft}
+                  onChange={(event) => setSkillDraft(event.target.value)}
+                  placeholder="TypeScript, Node.js, React"
+                />
               </div>
-              <div className="mt-3 flex gap-2">
+              <div>
+                <label className="block text-sm font-semibold text-black mb-2">
+                  Minimum Experience
+                </label>
+                <input
+                  className="w-full rounded-lg border-2 border-border bg-white px-3 py-2 text-sm transition focus:border-primary focus:outline-none"
+                  value={experienceDraft}
+                  onChange={(event) => setExperienceDraft(event.target.value)}
+                  placeholder="e.g. 3 years, 2+ years"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button type="submit" disabled={creating} className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                {editingId ? "Update Job" : "Create Job"}
+              </Button>
+              {editingId && (
                 <Button
+                  type="button"
                   variant="secondary"
                   onClick={() => {
+                    setEditingId(null);
+                    setSkillDraft("");
+                    setExperienceDraft("0 years");
+                    setForm(initialForm);
+                  }}
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </form>
+        </section>
+
+        {/* Job Listings Section */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-2xl font-bold text-primary flex items-center gap-2">
+                <Briefcase className="h-6 w-6" />
+                Active Job Openings
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {jobs?.length ?? 0} position{jobs?.length !== 1 ? "s" : ""} available
+              </p>
+            </div>
+          </div>
+
+          {!jobs?.length ? (
+            <div className="rounded-2xl border-2 border-dashed border-border bg-gradient-to-br from-gray-50 to-white p-12 text-center">
+              <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-700 font-semibold">No jobs created yet</p>
+              <p className="text-sm text-gray-600 mt-1">
+                Create your first job opening above to get started
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
+              {(jobs ?? []).map((job) => (
+                <JobCard
+                  key={job._id}
+                  job={job}
+                  isSelected={selectedJobId === job._id}
+                  onSelect={() => {
+                    setSelectedJobId(job._id);
+                    setJobPreviewOpen(true);
+                  }}
+                  onEdit={() => {
                     setEditingId(job._id);
                     setSkillDraft(job.requiredSkills.join(", "));
                     setExperienceDraft(`${job.minimumExperience} years`);
@@ -239,13 +289,9 @@ export default function JobsPage() {
                       location: job.location,
                       employmentType: job.employmentType,
                     });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={async () => {
+                  onDelete={async () => {
                     try {
                       setStatus({ type: "info", text: "Deleting job..." });
                       await deleteJob(job._id).unwrap();
@@ -254,68 +300,23 @@ export default function JobsPage() {
                       setStatus({ type: "error", text: "Failed to delete job." });
                     }
                   }}
-                >
-                  Delete
-                </Button>
-              </div>
-            </article>
-          ))}
-          {!jobs?.length && <p className="text-sm text-gray-600">No jobs created yet.</p>}
-        </div>
-      </section>
-    </div>
-      {jobPreviewOpen && (
-        <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-2xl overflow-auto border-l border-border bg-white p-5 shadow-2xl">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-black">Job Detail Preview</h3>
-            <Button variant="ghost" onClick={() => setJobPreviewOpen(false)}>
-              Close
-            </Button>
-          </div>
-          {!selectedJob ? (
-            <p className="mt-3 text-sm text-gray-600">Select a job to preview full details.</p>
-          ) : (
-            <div className="mt-3 space-y-3 text-sm">
-              <div>
-                <p className="font-semibold text-black">Title</p>
-                <p>{selectedJob.title}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-black">Description</p>
-                <p className="whitespace-pre-wrap">{selectedJob.description}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="font-semibold text-black">Experience</p>
-                  <p>{selectedJob.minimumExperience} years</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-black">Employment</p>
-                  <p>{selectedJob.employmentType}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-black">Education</p>
-                  <p>{selectedJob.education}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-black">Location</p>
-                  <p>{selectedJob.location}</p>
-                </div>
-              </div>
-              <div>
-                <p className="font-semibold text-black">Required Skills</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedJob.requiredSkills.map((skill) => (
-                    <span key={skill} className="rounded-full bg-primary px-2 py-1 text-xs text-white">
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
+                  isExpanded={expanded[job._id] ?? false}
+                  onToggleExpand={() => {
+                    setExpanded((prev) => ({ ...prev, [job._id]: !prev[job._id] }));
+                  }}
+                />
+              ))}
             </div>
           )}
-        </aside>
-      )}
+        </section>
+      </div>
+
+      {/* Job Detail Panel */}
+      <JobDetailPanel
+        job={selectedJob ?? null}
+        isOpen={jobPreviewOpen}
+        onClose={() => setJobPreviewOpen(false)}
+      />
     </>
   );
 }
