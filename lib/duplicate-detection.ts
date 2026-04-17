@@ -183,8 +183,8 @@ export function calculateDuplicateSimilarity(applicant1: Applicant, applicant2: 
 
   // Also check structured profiles if they exist
   if (applicant1.structuredProfile && applicant2.structuredProfile) {
-    const struct1 = applicant1.structuredProfile as Record<string, unknown>;
-    const struct2 = applicant2.structuredProfile as Record<string, unknown>;
+    const struct1 = applicant1.structuredProfile as unknown as Record<string, unknown>;
+    const struct2 = applicant2.structuredProfile as unknown as Record<string, unknown>;
     const structJson1 = JSON.stringify(struct1).toLowerCase();
     const structJson2 = JSON.stringify(struct2).toLowerCase();
     if (structJson1 === structJson2) {
