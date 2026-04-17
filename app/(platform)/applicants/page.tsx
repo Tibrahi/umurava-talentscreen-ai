@@ -297,7 +297,7 @@ export default function ApplicantsPage() {
 
             <textarea
               rows={12}
-              className="mt-3 w-full rounded-lg border border-border p-3 text-sm font-mono"
+              className="mt-3 w-full rounded-lg border border-border bg-white p-3 text-sm font-mono text-gray-900 placeholder-gray-400"
               value={jsonValue}
               onChange={(event) => setJsonValue(event.target.value)}
               placeholder={
@@ -694,7 +694,7 @@ export default function ApplicantsPage() {
                     )}
 
                     {/* Skills */}
-                    {profile.skills && profile.skills.length > 0 && (
+                    {profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0 && (
                       <div className="rounded-lg border border-border p-4">
                         <h4 className="font-semibold text-primary mb-3">🛠️ Skills ({profile.skills.length})</h4>
                         <div className="space-y-2">
@@ -714,7 +714,7 @@ export default function ApplicantsPage() {
                     )}
 
                     {/* Languages */}
-                    {profile.languages && profile.languages.length > 0 && (
+                    {profile.languages && Array.isArray(profile.languages) && profile.languages.length > 0 && (
                       <div className="rounded-lg border border-border p-4">
                         <h4 className="font-semibold text-primary mb-3">🗣️ Languages ({profile.languages.length})</h4>
                         <div className="space-y-2">
@@ -729,7 +729,7 @@ export default function ApplicantsPage() {
                     )}
 
                     {/* Experience */}
-                    {profile.experience && profile.experience.length > 0 && (
+                    {profile.experience && Array.isArray(profile.experience) && profile.experience.length > 0 && (
                       <div className="rounded-lg border border-border p-4">
                         <h4 className="font-semibold text-primary mb-3">💼 Experience ({profile.experience.length})</h4>
                         <div className="space-y-3">
@@ -761,11 +761,11 @@ export default function ApplicantsPage() {
                     )}
 
                     {/* Education */}
-                    {profile.education && profile.education.length > 0 && (
+                    {profile.education && Array.isArray(profile.education) && profile.education.length > 0 && (
                       <div className="rounded-lg border border-border p-4">
                         <h4 className="font-semibold text-primary mb-3">🎓 Education ({profile.education.length})</h4>
                         <div className="space-y-3">
-                          {(profile.education as any[]).map((edu: any, i: number) => (
+                          {profile.education.map((edu: any, i: number) => (
                             <div key={i} className="border-l-4 border-primary pl-3 py-1">
                               <div>
                                 <p className="font-semibold">{edu.degree}</p>
@@ -784,7 +784,7 @@ export default function ApplicantsPage() {
                     )}
 
                     {/* Certifications */}
-                    {profile.certifications && profile.certifications.length > 0 && (
+                    {profile.certifications && Array.isArray(profile.certifications) && profile.certifications.length > 0 && (
                       <div className="rounded-lg border border-border p-4">
                         <h4 className="font-semibold text-primary mb-3">📜 Certifications ({profile.certifications.length})</h4>
                         <div className="space-y-2">
@@ -800,7 +800,7 @@ export default function ApplicantsPage() {
                     )}
 
                     {/* Projects */}
-                    {profile.projects && profile.projects.length > 0 && (
+                    {profile.projects && Array.isArray(profile.projects) && profile.projects.length > 0 && (
                       <div className="rounded-lg border border-border p-4">
                         <h4 className="font-semibold text-primary mb-3">🚀 Projects ({profile.projects.length})</h4>
                         <div className="space-y-3">
