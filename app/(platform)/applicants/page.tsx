@@ -671,11 +671,21 @@ export default function ApplicantsPage() {
                             <p className="font-medium">{profile.location}</p>
                           </div>
                         )}
+                        <div>
+                          <p className="text-gray-600">Years of Experience</p>
+                          <p className="font-medium">{selected.yearsOfExperience} years</p>
+                        </div>
+                        {selected.education && (
+                          <div className="col-span-2">
+                            <p className="text-gray-600">Education</p>
+                            <p className="font-medium text-xs whitespace-pre-wrap">{selected.education}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Headline & Bio */}
-                    {(profile.headline || profile.bio) && (
+                    {(profile.headline || profile.bio || selected.summary || selected.resumeText) && (
                       <div className="rounded-lg border border-border p-4">
                         <h4 className="font-semibold text-primary mb-3">💭 Professional Summary</h4>
                         {profile.headline && (
@@ -685,18 +695,44 @@ export default function ApplicantsPage() {
                           </div>
                         )}
                         {profile.bio && (
-                          <div>
+                          <div className="mb-2">
                             <p className="text-gray-600 text-sm">Bio</p>
                             <p className="text-sm whitespace-pre-wrap">{profile.bio}</p>
+                          </div>
+                        )}
+                        {selected.summary && !profile.bio && (
+                          <div className="mb-2">
+                            <p className="text-gray-600 text-sm">Summary</p>
+                            <p className="text-sm whitespace-pre-wrap">{selected.summary}</p>
+                          </div>
+                        )}
+                        {selected.resumeText && (
+                          <div>
+                            <p className="text-gray-600 text-sm">Resume Text</p>
+                            <p className="text-xs whitespace-pre-wrap max-h-48 overflow-y-auto bg-gray-50 p-2 rounded border border-border">{selected.resumeText}</p>
                           </div>
                         )}
                       </div>
                     )}
 
-                    {/* Skills */}
+                    {/* Flat Skills List (Parsed) */}
+                    {selected.skills && Array.isArray(selected.skills) && selected.skills.length > 0 && (
+                      <div className="rounded-lg border border-border p-4 bg-blue-50">
+                        <h4 className="font-semibold text-primary mb-3">📌 Parsed Skills List</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selected.skills.map((skill: string, i: number) => (
+                            <Badge key={i} variant="primary" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Structured Skills */}
                     {profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0 && (
                       <div className="rounded-lg border border-border p-4">
-                        <h4 className="font-semibold text-primary mb-3">🛠️ Skills ({profile.skills.length})</h4>
+                        <h4 className="font-semibold text-primary mb-3">🛠️ Detailed Skills ({profile.skills.length})</h4>
                         <div className="space-y-2">
                           {profile.skills.map((skill: any, i: number) => (
                             <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded">
@@ -893,9 +929,24 @@ export default function ApplicantsPage() {
                       </div>
                     )}
 
+                    {/* Parsed Raw Data */}
+                    {selected.profileData && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                        <h4 className="font-semibold text-amber-900 mb-3">📊 Parsed Data (Source)</h4>
+                        <details className="cursor-pointer">
+                          <summary className="text-sm font-medium text-amber-800 hover:text-amber-900">
+                            View raw parsed data
+                          </summary>
+                          <pre className="mt-3 max-h-64 overflow-auto rounded-lg bg-white p-3 text-xs font-mono text-gray-800 border border-amber-200">
+                            {JSON.stringify(selected.profileData, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+                    )}
+
                     {/* Metadata */}
                     <div className="rounded-lg border border-border p-4 bg-gray-50">
-                      <h4 className="font-semibold text-primary mb-3">ℹ️ Metadata</h4>
+                      <h4 className="font-semibold text-primary mb-3">ℹ️ Profile Metadata</h4>
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <p className="text-gray-600">Source</p>
@@ -908,6 +959,22 @@ export default function ApplicantsPage() {
                           ) : (
                             <Badge variant="secondary">Active</Badge>
                           )}
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Years of Experience</p>
+                          <p className="font-medium">{selected.yearsOfExperience} years</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Skills Count</p>
+                          <p className="font-medium">{selected.skills?.length || 0} skills</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Experience Entries</p>
+                          <p className="font-medium">{profile.experience?.length || 0} positions</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Education Entries</p>
+                          <p className="font-medium">{profile.education?.length || 0} institutions</p>
                         </div>
                         <div>
                           <p className="text-gray-600">Created</p>
