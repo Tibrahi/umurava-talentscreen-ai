@@ -61,13 +61,13 @@ function parseSkills(skillsData: unknown): Skill[] {
   if (Array.isArray(skillsData)) {
     return skillsData
       .map((item) => {
-        if (typeof item === "string") return { name: item };
+        if (typeof item === "string") return { name: item, level: "Intermediate", yearsOfExperience: 1 };
         if (item && typeof item === "object") {
           const obj = item as UnknownRecord;
           return {
             name: String(obj.name || ""),
-            level: normalizeSkillLevel(obj.level),
-            yearsOfExperience: typeof obj.yearsOfExperience === "number" ? obj.yearsOfExperience : undefined,
+            level: normalizeSkillLevel(obj.level) ?? "Intermediate",
+            yearsOfExperience: typeof obj.yearsOfExperience === "number" ? obj.yearsOfExperience : 1,
           };
         }
         return null;
@@ -77,7 +77,7 @@ function parseSkills(skillsData: unknown): Skill[] {
   if (typeof skillsData === "string") {
     return skillsData
       .split(",")
-      .map((s) => ({ name: s.trim() }))
+      .map((s) => ({ name: s.trim(), level: "Intermediate" as const, yearsOfExperience: 1 }))
       .filter((s) => s.name);
   }
   return [];
@@ -121,18 +121,19 @@ function parseExperience(expData: unknown): Experience[] {
       const startDate = normalizeDate(obj.startDate || obj.start_date || obj["Start Date"]);
       const endDateRaw = obj.endDate || obj.end_date || obj["End Date"] || "Present";
       const endDate = normalizeDate(endDateRaw);
+      const isCurrent = endDateRaw === "Present" || String(endDateRaw).toLowerCase() === "present";
       return {
         company,
         role,
         startDate,
         endDate,
-        description: String(obj.description || obj.Description || ""),
+        description: String(obj.description || obj.Description || "").trim() || undefined,
         technologies: Array.isArray(obj.technologies)
           ? obj.technologies.map((t) => String(t))
           : typeof obj.technologies === "string"
             ? obj.technologies.split(",").map((t) => t.trim())
             : [],
-        isCurrent: endDateRaw === "Present" || String(endDateRaw).toLowerCase() === "present",
+        isCurrent,
       };
     })
     .filter((e) => e) as Experience[];
@@ -235,9 +236,9 @@ function parseSocialLinks(socialData: unknown): SocialLinks {
   if (!socialData || typeof socialData !== "object") return {};
   const obj = socialData as UnknownRecord;
   return {
-    linkedin: String(obj.linkedin || obj.linkedIn || ""),
-    github: String(obj.github || obj.GitHub || ""),
-    portfolio: String(obj.portfolio || obj.Portfolio || ""),
+    linkedin: String(obj.linkedin || obj.linkedIn || "").trim() || undefined,
+    github: String(obj.github || obj.GitHub || "").trim() || undefined,
+    portfolio: String(obj.portfolio || obj.Portfolio || "").trim() || undefined,
   };
 }
 
@@ -427,11 +428,16 @@ export function buildStructuredProfile(raw: UnknownRecord): StructuredProfile {
     socialLinks = parseLegacySocialLinks(raw.links);
   }
   
+  // RULE: bio → headline (canonical headline should prefer bio if present)
+  const headlineFromBio = String(raw.bio || "").trim();
+  const headlineFromHeadline = String(raw.headline || raw.title || "").trim();
+  const headline = headlineFromBio || headlineFromHeadline;
+
   return {
     firstName: firstName || undefined,
     lastName: lastName || undefined,
     email: String(raw.email || "").toLowerCase().trim(),
-    headline: String(raw.headline || raw.title || "").trim() || undefined,
+    headline: headline || undefined,
     bio: String(raw.bio || raw.summary || "").trim() || undefined,
     location: String(raw.location || raw.city || raw.address || "").trim() || undefined,
     skills,
@@ -440,8 +446,17 @@ export function buildStructuredProfile(raw: UnknownRecord): StructuredProfile {
     education: finalEducations,
     certifications: finalCertifications,
     projects: finalProjects,
-    availability: parseAvailability(raw.availability),
-    socialLinks,
+    availability:
+      parseAvailability(raw.availability) ?? {
+        status: "Open to Opportunities",
+        type: "Full-time",
+        startDate: undefined,
+      },
+    socialLinks: {
+      linkedin: socialLinks.linkedin || undefined,
+      github: socialLinks.github || undefined,
+      portfolio: socialLinks.portfolio || undefined,
+    },
   };
 }
 

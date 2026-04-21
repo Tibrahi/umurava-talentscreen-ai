@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongoose";
 import { ApplicantModel } from "@/lib/models/applicant";
 import { normalizeApplicantPayload } from "@/lib/normalize-applicant";
+import { transformRawToTalentProfile } from "@/lib/talent-profile/transform";
 
 export const runtime = "nodejs";
 
@@ -71,6 +72,13 @@ export async function POST(req: Request) {
         },
         { status: 400 }
       );
+    }
+
+    // Optional strict schema output (Talent Profile Processing Engine)
+    // If caller sends `?strictProfile=1`, we return clean schema-compliant JSON only.
+    const url = new URL(req.url);
+    if (url.searchParams.get("strictProfile") === "1") {
+      return NextResponse.json(transformRawToTalentProfile(body), { status: 200 });
     }
 
     // Validate required fields
