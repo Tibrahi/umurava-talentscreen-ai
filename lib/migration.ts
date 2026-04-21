@@ -17,7 +17,7 @@ export async function migrateApplicantToStructured(applicantId: string) {
       throw new Error("Applicant not found");
     }
 
-    // If structuredProfile already exists, return it
+    // If structuredProfile already exists and has content, return it
     if (applicant.structuredProfile && Object.keys(applicant.structuredProfile).length > 0) {
       return applicant;
     }
@@ -25,7 +25,7 @@ export async function migrateApplicantToStructured(applicantId: string) {
     // Reconstruct from available data
     let rawData: Record<string, unknown> = {};
 
-    // Try to use profileData first
+    // Try to use profileData first (original uploaded format)
     if (applicant.profileData && typeof applicant.profileData === "object") {
       const profileData = applicant.profileData as Record<string, unknown>;
       if (profileData.raw && typeof profileData.raw === "object") {
@@ -47,7 +47,7 @@ export async function migrateApplicantToStructured(applicantId: string) {
       };
     }
 
-    // Build structured profile
+    // Build structured profile - handles both new and legacy formats
     const structuredProfile = buildStructuredProfile(rawData);
 
     // Update applicant with structured profile

@@ -137,20 +137,41 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
 
   // Fallback: if no structured profile, create a basic one from flat fields
   if (!profile || (typeof profile === "object" && Object.keys(profile).length === 0)) {
-    const nameParts = applicant.fullName.split(" ");
+    const nameParts = applicant.fullName?.split(" ") || ["Unknown"];
     profile = {
       firstName: nameParts[0] || "",
       lastName: nameParts.slice(1).join(" ") || "",
-      email: applicant.email,
+      email: applicant.email || "",
       headline: applicant.summary || "",
       location: "",
       skills: applicant.skills?.map((s) => ({ name: s })) || [],
       experience: [],
       education: [],
+      languages: [],
+      certifications: [],
+      projects: [],
     };
   }
 
-  if (!profile || !profile.email) {
+  // Create a new object to ensure extensibility
+  const safeProfile: StructuredProfile = {
+    firstName: profile.firstName || "",
+    lastName: profile.lastName || "",
+    email: profile.email || "",
+    headline: profile.headline || "",
+    bio: profile.bio || "",
+    location: profile.location || "",
+    skills: Array.isArray(profile.skills) ? profile.skills : [],
+    languages: Array.isArray(profile.languages) ? profile.languages : [],
+    experience: Array.isArray(profile.experience) ? profile.experience : [],
+    education: Array.isArray(profile.education) ? profile.education : [],
+    certifications: Array.isArray(profile.certifications) ? profile.certifications : [],
+    projects: Array.isArray(profile.projects) ? profile.projects : [],
+    availability: profile.availability,
+    socialLinks: profile.socialLinks || {},
+  };
+
+  if (!safeProfile || !safeProfile.email) {
     return (
       <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
         <h3 className="font-semibold text-red-900 mb-2">Error Loading Profile</h3>
@@ -188,23 +209,25 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              {profile.firstName} {profile.lastName}
+              {safeProfile.firstName} {safeProfile.lastName}
             </h1>
-            {profile.headline && <p className="text-lg text-blue-600 font-medium mt-1">{profile.headline}</p>}
+            {safeProfile.headline && (
+              <p className="text-lg text-blue-600 font-medium mt-1">{safeProfile.headline}</p>
+            )}
           </div>
         </div>
 
-        {profile.bio && (
-          <p className="text-gray-700 leading-relaxed mb-4 max-w-2xl">{profile.bio}</p>
+        {safeProfile.bio && (
+          <p className="text-gray-700 leading-relaxed mb-4 max-w-2xl">{safeProfile.bio}</p>
         )}
 
         {/* Contact Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-          {profile.email && (
+          {safeProfile.email && (
             <div className="flex items-center gap-2 text-gray-700">
               <Mail className="w-4 h-4 text-blue-600" />
-              <a href={`mailto:${profile.email}`} className="hover:text-blue-600 underline">
-                {profile.email}
+              <a href={`mailto:${safeProfile.email}`} className="hover:text-blue-600 underline">
+                {safeProfile.email}
               </a>
             </div>
           )}
@@ -214,10 +237,10 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
               <span>{applicant.phone}</span>
             </div>
           )}
-          {profile.location && (
+          {safeProfile.location && (
             <div className="flex items-center gap-2 text-gray-700">
               <MapPin className="w-4 h-4 text-blue-600" />
-              <span>{profile.location}</span>
+              <span>{safeProfile.location}</span>
             </div>
           )}
           {applicant.yearsOfExperience > 0 && (
@@ -229,12 +252,12 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
         </div>
 
         {/* Social Links */}
-        {profile.socialLinks && (
-          Object.values(profile.socialLinks).some((v) => v) && (
+        {safeProfile.socialLinks && (
+          Object.values(safeProfile.socialLinks).some((v) => v) && (
             <div className="flex gap-2 mt-4 flex-wrap">
-              {profile.socialLinks.github && (
+              {safeProfile.socialLinks.github && (
                 <a
-                  href={profile.socialLinks.github}
+                  href={safeProfile.socialLinks.github}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-3 py-2 bg-white text-gray-800 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200"
@@ -246,9 +269,9 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
-              {profile.socialLinks.linkedin && (
+              {safeProfile.socialLinks.linkedin && (
                 <a
-                  href={profile.socialLinks.linkedin}
+                  href={safeProfile.socialLinks.linkedin}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-3 py-2 bg-white text-blue-600 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200"
@@ -260,9 +283,9 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
-              {profile.socialLinks.portfolio && (
+              {safeProfile.socialLinks.portfolio && (
                 <a
-                  href={profile.socialLinks.portfolio}
+                  href={safeProfile.socialLinks.portfolio}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-3 py-2 bg-white text-purple-600 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200"
@@ -279,26 +302,26 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
 
       <div className="grid grid-cols-1 gap-6">
         {/* Availability */}
-        {profile.availability && (
+        {safeProfile.availability && (
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <SectionHeader
               icon={<Calendar className="w-5 h-5 text-green-600" />}
               title="Availability"
             />
             <div className="flex flex-wrap gap-3">
-              {profile.availability.status && (
-                <Badge className={`${getAvailabilityStatusColor(profile.availability.status)} font-medium`}>
-                  {profile.availability.status}
+              {safeProfile.availability.status && (
+                <Badge className={`${getAvailabilityStatusColor(safeProfile.availability.status)} font-medium`}>
+                  {safeProfile.availability.status}
                 </Badge>
               )}
-              {profile.availability.type && (
-                <Badge className={`${getEmploymentTypeColor(profile.availability.type)} font-medium`}>
-                  {profile.availability.type}
+              {safeProfile.availability.type && (
+                <Badge className={`${getEmploymentTypeColor(safeProfile.availability.type)} font-medium`}>
+                  {safeProfile.availability.type}
                 </Badge>
               )}
-              {profile.availability.startDate && (
+              {safeProfile.availability.startDate && (
                 <span className="text-sm text-gray-600">
-                  Available from {new Date(profile.availability.startDate).toLocaleDateString()}
+                  Available from {new Date(safeProfile.availability.startDate).toLocaleDateString()}
                 </span>
               )}
             </div>
@@ -306,14 +329,14 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
         )}
 
         {/* Skills */}
-        {profile.skills && profile.skills.length > 0 && (
+        {safeProfile.skills && safeProfile.skills.length > 0 && (
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <SectionHeader
               icon={<Code className="w-5 h-5 text-indigo-600" />}
               title="Skills"
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {profile.skills.map((skill, idx) => (
+              {safeProfile.skills.map((skill, idx) => (
                 <div
                   key={idx}
                   className="flex items-start justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors"
@@ -336,14 +359,14 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
         )}
 
         {/* Languages */}
-        {profile.languages && profile.languages.length > 0 && (
+        {safeProfile.languages && safeProfile.languages.length > 0 && (
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <SectionHeader
               icon={<Globe className="w-5 h-5 text-amber-600" />}
               title="Languages"
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {profile.languages.map((lang, idx) => (
+              {safeProfile.languages.map((lang, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <span className="font-medium text-gray-900">{lang.name}</span>
                   {lang.proficiency && (
@@ -358,14 +381,14 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
         )}
 
         {/* Work Experience */}
-        {profile.experience && profile.experience.length > 0 && (
+        {safeProfile.experience && safeProfile.experience.length > 0 && (
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <SectionHeader
               icon={<Briefcase className="w-5 h-5 text-blue-600" />}
               title="Work Experience"
             />
             <div className="space-y-4">
-              {profile.experience.map((exp, idx) => (
+              {safeProfile.experience.map((exp, idx) => (
                 <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -398,14 +421,14 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
         )}
 
         {/* Education */}
-        {profile.education && profile.education.length > 0 && (
+        {safeProfile.education && safeProfile.education.length > 0 && (
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <SectionHeader
               icon={<GraduationCap className="w-5 h-5 text-purple-600" />}
               title="Education"
             />
             <div className="space-y-4">
-              {profile.education.map((edu, idx) => (
+              {safeProfile.education.map((edu, idx) => (
                 <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-purple-300 transition-colors">
                   <h3 className="font-bold text-gray-900">{edu.degree}</h3>
                   <p className="text-purple-600 font-medium text-sm">{edu.institution}</p>
@@ -424,14 +447,14 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
         )}
 
         {/* Certifications */}
-        {profile.certifications && profile.certifications.length > 0 && (
+        {safeProfile.certifications && safeProfile.certifications.length > 0 && (
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <SectionHeader
               icon={<Award className="w-5 h-5 text-orange-600" />}
               title="Certifications"
             />
             <div className="space-y-3">
-              {profile.certifications.map((cert, idx) => (
+              {safeProfile.certifications.map((cert, idx) => (
                 <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-orange-300 transition-colors">
                   <h3 className="font-medium text-gray-900">{cert.name}</h3>
                   {cert.issuer && (
@@ -449,14 +472,14 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
         )}
 
         {/* Projects */}
-        {profile.projects && profile.projects.length > 0 && (
+        {safeProfile.projects && safeProfile.projects.length > 0 && (
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <SectionHeader
               icon={<Code className="w-5 h-5 text-cyan-600" />}
               title="Projects"
             />
             <div className="space-y-4">
-              {profile.projects.map((proj, idx) => (
+              {safeProfile.projects.map((proj, idx) => (
                 <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-cyan-300 transition-colors">
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -505,25 +528,25 @@ export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewP
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-2xl font-bold text-gray-900">
-                {profile.skills?.length || 0}
+                {safeProfile.skills?.length || 0}
               </p>
               <p className="text-xs text-gray-600 mt-1">Skills</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">
-                {profile.experience?.length || 0}
+                {safeProfile.experience?.length || 0}
               </p>
               <p className="text-xs text-gray-600 mt-1">Experiences</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">
-                {profile.education?.length || 0}
+                {safeProfile.education?.length || 0}
               </p>
               <p className="text-xs text-gray-600 mt-1">Education</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">
-                {profile.projects?.length || 0}
+                {safeProfile.projects?.length || 0}
               </p>
               <p className="text-xs text-gray-600 mt-1">Projects</p>
             </div>

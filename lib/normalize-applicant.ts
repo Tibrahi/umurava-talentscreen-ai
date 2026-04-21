@@ -266,10 +266,166 @@ function extractName(raw: UnknownRecord): { firstName: string; lastName: string;
 }
 
 /**
- * Build structured profile from raw data
+ * Parse legacy experiences array (with "experiences" key and "company"/"title" fields)
  */
+function parseLegacyExperiences(expData: unknown): Experience[] {
+  if (!expData || !Array.isArray(expData)) return [];
+  return expData
+    .map((item) => {
+      if (typeof item !== "object" || !item) return null;
+      const obj = item as UnknownRecord;
+      
+      // Handle both new format (role/company) and legacy format (title/company)
+      const company = String(obj.company || "");
+      const role = String(obj.title || obj.role || "");
+      
+      if (!company && !role) return null;
+      
+      const startDate = normalizeDate(obj.startDate || obj.start_date || "");
+      const endDate = normalizeDate(obj.endDate || obj.end_date || "");
+      
+      return {
+        company: company || "Unknown",
+        role: role || "Position",
+        startDate: startDate || "2000-01",
+        endDate: endDate || "Present",
+        description: String(obj.description || ""),
+        technologies: Array.isArray(obj.technologies)
+          ? obj.technologies.map((t) => String(t))
+          : [],
+      };
+    })
+    .filter((e) => e) as Experience[];
+}
+
+/**
+ * Parse legacy educations array
+ */
+function parseLegacyEducations(eduData: unknown): Education[] {
+  if (!eduData || !Array.isArray(eduData)) return [];
+  return eduData
+    .map((item) => {
+      if (typeof item !== "object" || !item) return null;
+      const obj = item as UnknownRecord;
+      
+      const institution = String(obj.school || obj.institution || "");
+      const degree = String(obj.degree || "");
+      
+      if (!institution && !degree) return null;
+      
+      return {
+        institution: institution || "Unknown",
+        degree: degree || "Degree",
+        fieldOfStudy: String(obj.major || obj.fieldOfStudy || ""),
+        startYear: typeof obj.startDate === "string" 
+          ? parseInt(obj.startDate.split("-")[0]) 
+          : typeof obj.startYear === "number" ? obj.startYear : undefined,
+        endYear: typeof obj.endDate === "string"
+          ? parseInt(obj.endDate.split("-")[0])
+          : typeof obj.endYear === "number" ? obj.endYear : undefined,
+      };
+    })
+    .filter((e) => e) as Education[];
+}
+
+/**
+ * Parse legacy certificates array
+ */
+function parseLegacyCertificates(certData: unknown): Certification[] {
+  if (!certData || !Array.isArray(certData)) return [];
+  return certData
+    .map((item) => {
+      if (typeof item === "string") return { name: item };
+      if (typeof item !== "object" || !item) return null;
+      const obj = item as UnknownRecord;
+      
+      return {
+        name: String(obj.name || ""),
+        issuer: String(obj.issuer || ""),
+        issueDate: normalizeDate(String(obj.issueDate || "")),
+      };
+    })
+    .filter((c) => c && c.name) as Certification[];
+}
+
+/**
+ * Parse legacy projects array
+ */
+function parseLegacyProjects(projData: unknown): Project[] {
+  if (!projData || !Array.isArray(projData)) return [];
+  return projData
+    .map((item) => {
+      if (typeof item !== "object" || !item) return null;
+      const obj = item as UnknownRecord;
+      
+      const name = String(obj.name || "");
+      if (!name) return null;
+      
+      return {
+        name,
+        description: String(obj.description || ""),
+        technologies: Array.isArray(obj.technologies)
+          ? obj.technologies.map((t) => String(t))
+          : [],
+        role: String(obj.role || ""),
+        link: String(obj.url || obj.link || ""),
+        startDate: normalizeDate(String(obj.startDate || "")),
+        endDate: normalizeDate(String(obj.endDate || "")),
+      };
+    })
+    .filter((p) => p) as Project[];
+}
+
+/**
+ * Parse legacy social links (using "links" key)
+ */
+function parseLegacySocialLinks(socialData: unknown): SocialLinks {
+  if (!socialData || typeof socialData !== "object") return {};
+  
+  const obj = socialData as UnknownRecord;
+  
+  return {
+    linkedin: String(obj.linkedinUrl || obj.linkedin || "").trim() || undefined,
+    github: String(obj.githubUrl || obj.github || "").trim() || undefined,
+    portfolio: String(obj.portfolioUrl || obj.portfolio || "").trim() || undefined,
+  };
+}
+
+// Update buildStructuredProfile to handle both formats
 export function buildStructuredProfile(raw: UnknownRecord): StructuredProfile {
   const { firstName, lastName, fullName } = extractName(raw);
+  
+  // Handle legacy field names
+  const skills = parseSkills(raw.skills) || [];
+  
+  // Try new format first, then legacy format
+  const experiences = parseExperience(raw.experience) || [];
+  const educations = parseEducation(raw.education) || [];
+  const certifications = parseCertifications(raw.certifications) || [];
+  const projects = parseProjects(raw.projects) || [];
+  
+  // Fallback to legacy formats if new formats are empty
+  const finalExperiences = experiences.length > 0 
+    ? experiences 
+    : parseLegacyExperiences(raw.experiences);
+  
+  const finalEducations = educations.length > 0
+    ? educations
+    : parseLegacyEducations(raw.educations);
+  
+  const finalCertifications = certifications.length > 0
+    ? certifications
+    : parseLegacyCertificates(raw.certificates);
+  
+  const finalProjects = projects.length > 0
+    ? projects
+    : parseLegacyProjects(raw.projects);
+  
+  // Handle social links - try both new and legacy formats
+  let socialLinks = parseSocialLinks(raw.socialLinks || raw.social_links);
+  if (!socialLinks || Object.keys(socialLinks).length === 0) {
+    socialLinks = parseLegacySocialLinks(raw.links);
+  }
   
   return {
     firstName: firstName || undefined,
@@ -277,15 +433,15 @@ export function buildStructuredProfile(raw: UnknownRecord): StructuredProfile {
     email: String(raw.email || "").toLowerCase().trim(),
     headline: String(raw.headline || raw.title || "").trim() || undefined,
     bio: String(raw.bio || raw.summary || "").trim() || undefined,
-    location: String(raw.location || raw.Location || "").trim() || undefined,
-    skills: parseSkills(raw.skills),
-    languages: parseLanguages(raw.languages),
-    experience: parseExperience(raw.experience),
-    education: parseEducation(raw.education),
-    certifications: parseCertifications(raw.certifications),
-    projects: parseProjects(raw.projects),
+    location: String(raw.location || raw.city || raw.address || "").trim() || undefined,
+    skills,
+    languages: parseLanguages(raw.languages) || [],
+    experience: finalExperiences,
+    education: finalEducations,
+    certifications: finalCertifications,
+    projects: finalProjects,
     availability: parseAvailability(raw.availability),
-    socialLinks: parseSocialLinks(raw.socialLinks || raw.social_links),
+    socialLinks,
   };
 }
 

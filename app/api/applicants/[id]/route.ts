@@ -38,7 +38,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       );
     }
 
-    // Auto-migrate if structuredProfile is missing
+    // Auto-migrate if structuredProfile is missing or empty
     if (
       !applicant.structuredProfile ||
       (typeof applicant.structuredProfile === "object" &&
