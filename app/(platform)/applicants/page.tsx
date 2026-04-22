@@ -17,7 +17,6 @@ import {
 } from "@/redux/services/api";
 import { normalizeApplicantPayload, buildStructuredProfile } from "@/lib/normalize-applicant";
 import { detectDuplicates, calculateDuplicateSimilarity, mergeApplicants } from "@/lib/duplicate-detection";
-import { ApplicantDetailModal } from "@/components/applicants/applicant-detail-modal";
 import { DataMigrationPanel } from "@/components/applicants/data-migration-panel";
 import type { Applicant, StructuredProfile } from "@/lib/types";
 
@@ -678,6 +677,8 @@ export default function ApplicantsPage() {
                   onCheckboxChange={handleCheckboxChange}
                   onRowClick={() => {
                     setSelectedApplicantId(applicant._id);
+                    setPreviewOpen(true);
+                    setPreviewMode("overview");
                   }}
                   onEdit={(app) => {
                     setEditingId(app._id);
@@ -720,7 +721,13 @@ export default function ApplicantsPage() {
               >
                 JSON
               </Button>
-              <Button variant="ghost" onClick={() => setPreviewOpen(false)}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setPreviewOpen(false);
+                  setSelectedApplicantId(null);
+                }}
+              >
                 Close
               </Button>
             </div>
@@ -943,8 +950,8 @@ export default function ApplicantsPage() {
                           {profile.education.map((edu: any, i: number) => (
                             <div key={i} className="border-l-4 border-primary pl-3 py-1">
                               <div>
-                                <p className="font-semibold">{edu.degree}</p>
-                                <p className="text-sm text-gray-600">{edu.institution}</p>
+                                <p className="font-semibold">{edu.degree || edu.fieldOfStudy || "Education"}</p>
+                                <p className="text-sm text-gray-600">{edu.institution || "Institution not provided"}</p>
                                 {edu.fieldOfStudy && <p className="text-sm text-gray-600">Field: {edu.fieldOfStudy}</p>}
                                 {(edu.startYear || edu.endYear) && (
                                   <p className="text-xs text-gray-600">
@@ -1138,11 +1145,6 @@ export default function ApplicantsPage() {
       )}
 
       {/* Applicant Detail Modal */}
-      <ApplicantDetailModal
-        applicant={selectedApplicant ?? null}
-        isOpen={!!selectedApplicantId && !previewOpen}
-        onClose={() => setSelectedApplicantId(null)}
-      />
     </div>
   );
 }
