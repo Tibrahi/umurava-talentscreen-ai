@@ -12,9 +12,22 @@ import type {
 
 type UnknownRecord = Record<string, unknown>;
 
+// Aggressive JSON parser to handle stringified objects/arrays from messy inputs
+function tryParseJSON(data: unknown): any {
+  if (typeof data === "string") {
+    try {
+      const parsed = JSON.parse(data);
+      return parsed;
+    } catch {
+      return data;
+    }
+  }
+  return data;
+}
+
 function normalizeDate(dateStr: string | unknown, format: "YYYY-MM" | "YYYY-MM-DD" = "YYYY-MM"): string {
-  if (!dateStr || typeof dateStr !== "string") return "";
-  const str = dateStr.trim();
+  if (!dateStr) return "";
+  const str = String(dateStr).trim();
   if (str.toLowerCase() === "present" || str.toLowerCase() === "current") return "Present";
   if (/^\d{4}-\d{2}(-\d{2})?$/.test(str)) return str.slice(0, format === "YYYY-MM" ? 7 : 10);
   if (/^\d{4}$/.test(str)) return format === "YYYY-MM" ? `${str}-01` : `${str}-01-01`;
@@ -63,9 +76,10 @@ function normalizeLanguageProficiency(prof: unknown): "Basic" | "Conversational"
 }
 
 function parseSkills(skillsData: unknown): Skill[] {
-  if (!skillsData) return [];
-  if (Array.isArray(skillsData)) {
-    return skillsData
+  const parsed = tryParseJSON(skillsData);
+  if (!parsed) return [];
+  if (Array.isArray(parsed)) {
+    return parsed
       .map((item) => {
         if (typeof item === "string") return { name: item, level: "Intermediate", yearsOfExperience: 1 };
         if (item && typeof item === "object") {
@@ -80,8 +94,8 @@ function parseSkills(skillsData: unknown): Skill[] {
       })
       .filter((s) => s && s.name) as Skill[];
   }
-  if (typeof skillsData === "string") {
-    return skillsData
+  if (typeof parsed === "string") {
+    return parsed
       .split(",")
       .map((s) => ({ name: s.trim(), level: "Intermediate" as const, yearsOfExperience: 1 }))
       .filter((s) => s.name);
@@ -90,9 +104,10 @@ function parseSkills(skillsData: unknown): Skill[] {
 }
 
 function parseLanguages(langData: unknown): Language[] {
-  if (!langData) return [];
-  if (Array.isArray(langData)) {
-    return langData
+  const parsed = tryParseJSON(langData);
+  if (!parsed) return [];
+  if (Array.isArray(parsed)) {
+    return parsed
       .map((item) => {
         if (typeof item === "string") return { name: item };
         if (item && typeof item === "object") {
@@ -106,8 +121,8 @@ function parseLanguages(langData: unknown): Language[] {
       })
       .filter((l) => l && l.name) as Language[];
   }
-  if (typeof langData === "string") {
-    return langData
+  if (typeof parsed === "string") {
+    return parsed
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
@@ -117,11 +132,11 @@ function parseLanguages(langData: unknown): Language[] {
 }
 
 function parseExperience(expData: unknown): Experience[] {
-  if (!expData) return [];
+  const parsed = tryParseJSON(expData);
+  if (!parsed) return [];
   
-  // CSV string fallback
-  if (typeof expData === "string") {
-    return expData.split(",").map(company => ({
+  if (typeof parsed === "string") {
+    return parsed.split(",").map(company => ({
       company: company.trim(),
       role: "Professional Role",
       startDate: "",
@@ -131,24 +146,24 @@ function parseExperience(expData: unknown): Experience[] {
     })).filter(e => e.company);
   }
 
-  if (!Array.isArray(expData)) return [];
-  return expData
+  if (!Array.isArray(parsed)) return [];
+  return parsed
     .map((item) => {
       if (typeof item !== "object" || !item) return null;
       const obj = item as UnknownRecord;
-      const company = String(obj.company || obj.Company || "");
-      const role = String(obj.role || obj.Role || obj.position || obj.Position || "");
-      if (!company || !role) return null;
+      const company = String(obj.company || obj.Company || obj.employer || "");
+      const role = String(obj.role || obj.Role || obj.position || obj.title || "");
+      if (!company && !role) return null;
       const startDate = normalizeDate(obj.startDate || obj.start_date || obj["Start Date"]);
       const endDateRaw = obj.endDate || obj.end_date || obj["End Date"] || "Present";
       const endDate = normalizeDate(endDateRaw);
-      const isCurrent = endDateRaw === "Present" || String(endDateRaw).toLowerCase() === "present";
+      const isCurrent = endDateRaw === "Present" || String(endDateRaw).toLowerCase() === "present" || !endDateRaw;
       return {
-        company,
-        role,
+        company: company || "Unknown Company",
+        role: role || "Professional",
         startDate,
         endDate,
-        description: String(obj.description || obj.Description || "").trim() || undefined,
+        description: String(obj.description || obj.Description || obj.summary || "").trim() || undefined,
         technologies: Array.isArray(obj.technologies)
           ? obj.technologies.map((t) => String(t))
           : typeof obj.technologies === "string"
@@ -161,63 +176,66 @@ function parseExperience(expData: unknown): Experience[] {
 }
 
 function parseEducation(eduData: unknown): Education[] {
-  if (!eduData) return [];
+  const parsed = tryParseJSON(eduData);
+  if (!parsed) return [];
   
-  // CSV string fallback
-  if (typeof eduData === "string") {
-    return eduData.split(",").map(school => ({
+  if (typeof parsed === "string") {
+    return parsed.split(",").map(school => ({
       institution: school.trim(),
       degree: "Degree",
       fieldOfStudy: ""
     })).filter(e => e.institution);
   }
 
-  if (!Array.isArray(eduData)) return [];
-  return eduData
+  if (!Array.isArray(parsed)) return [];
+  return parsed
     .map((item) => {
       if (typeof item === "string") return { institution: item, degree: "Degree", fieldOfStudy: "" };
       if (typeof item !== "object" || !item) return null;
       const obj = item as UnknownRecord;
-      const institution = String(obj.institution || obj.Institution || obj.school || obj.School || "");
-      if (!institution) return null;
+      const institution = String(obj.institution || obj.Institution || obj.school || obj.School || obj.university || "");
+      const degree = String(obj.degree || obj.Degree || obj.title || "");
+      if (!institution && !degree) return null;
       return {
-        institution,
-        degree: String(obj.degree || obj.Degree || ""),
-        fieldOfStudy: String(obj.fieldOfStudy || obj.field_of_study || obj.Field || ""),
-        startYear: typeof obj.startYear === "number" ? obj.startYear : undefined,
-        endYear: typeof obj.endYear === "number" ? obj.endYear : undefined,
+        institution: institution || "Unknown Institution",
+        degree: degree || "Degree",
+        fieldOfStudy: String(obj.fieldOfStudy || obj.field_of_study || obj.major || obj.Field || ""),
+        startYear: typeof obj.startYear === "number" ? obj.startYear : parseInt(String(obj.startYear || obj.startDate || "")) || undefined,
+        endYear: typeof obj.endYear === "number" ? obj.endYear : parseInt(String(obj.endYear || obj.endDate || "")) || undefined,
       };
     })
     .filter((e) => e) as Education[];
 }
 
 function parseCertifications(certData: unknown): Certification[] {
-  if (!certData) return [];
+  const parsed = tryParseJSON(certData);
+  if (!parsed) return [];
   
-  if (typeof certData === "string") {
-    return certData.split(",").map(name => ({ name: name.trim(), issuer: "" })).filter(c => c.name);
+  if (typeof parsed === "string") {
+    return parsed.split(",").map(name => ({ name: name.trim(), issuer: "" })).filter(c => c.name);
   }
 
-  if (!Array.isArray(certData)) return [];
-  return certData
+  if (!Array.isArray(parsed)) return [];
+  return parsed
     .map((item) => {
       if (typeof item === "string") return { name: item };
       if (typeof item !== "object" || !item) return null;
       const obj = item as UnknownRecord;
       return {
-        name: String(obj.name || obj.Name || ""),
-        issuer: String(obj.issuer || obj.Issuer || ""),
-        issueDate: normalizeDate(obj.issueDate || obj.issue_date),
+        name: String(obj.name || obj.Name || obj.title || ""),
+        issuer: String(obj.issuer || obj.Issuer || obj.authority || ""),
+        issueDate: normalizeDate(obj.issueDate || obj.issue_date || obj.date),
       };
     })
     .filter((c) => c && c.name) as Certification[];
 }
 
 function parseProjects(projData: unknown): Project[] {
-  if (!projData) return [];
+  const parsed = tryParseJSON(projData);
+  if (!parsed) return [];
   
-  if (typeof projData === "string") {
-    return projData.split(",").map(name => ({ 
+  if (typeof parsed === "string") {
+    return parsed.split(",").map(name => ({ 
       name: name.trim(), 
       description: "", 
       technologies: [], 
@@ -228,16 +246,16 @@ function parseProjects(projData: unknown): Project[] {
     })).filter(p => p.name);
   }
 
-  if (!Array.isArray(projData)) return [];
-  return projData
+  if (!Array.isArray(parsed)) return [];
+  return parsed
     .map((item) => {
       if (typeof item !== "object" || !item) return null;
       const obj = item as UnknownRecord;
-      const name = String(obj.name || obj.Name || "");
+      const name = String(obj.name || obj.Name || obj.title || "");
       if (!name) return null;
       return {
         name,
-        description: String(obj.description || obj.Description || ""),
+        description: String(obj.description || obj.Description || obj.summary || ""),
         technologies: Array.isArray(obj.technologies)
           ? obj.technologies.map((t) => String(t))
           : typeof obj.technologies === "string"
@@ -253,8 +271,9 @@ function parseProjects(projData: unknown): Project[] {
 }
 
 function parseAvailability(availData: unknown): Availability | undefined {
-  if (!availData || typeof availData !== "object") return undefined;
-  const obj = availData as UnknownRecord;
+  const parsed = tryParseJSON(availData);
+  if (!parsed || typeof parsed !== "object") return undefined;
+  const obj = parsed as UnknownRecord;
   const status = String(obj.status || "");
   const validStatuses = ["Available", "Open to Opportunities", "Not Available"];
   const typeStr = String(obj.type || "");
@@ -270,8 +289,9 @@ function parseAvailability(availData: unknown): Availability | undefined {
 }
 
 function parseSocialLinks(socialData: unknown): SocialLinks {
-  if (!socialData || typeof socialData !== "object") return {};
-  const obj = socialData as UnknownRecord;
+  const parsed = tryParseJSON(socialData);
+  if (!parsed || typeof parsed !== "object") return {};
+  const obj = parsed as UnknownRecord;
   return {
     linkedin: String(obj.linkedin || obj.linkedIn || "").trim() || undefined,
     github: String(obj.github || obj.GitHub || "").trim() || undefined,
@@ -300,96 +320,6 @@ function extractName(raw: UnknownRecord): { firstName: string; lastName: string;
   };
 }
 
-function parseLegacyExperiences(expData: unknown): Experience[] {
-  if (!expData || !Array.isArray(expData)) return [];
-  return expData
-    .map((item) => {
-      if (typeof item !== "object" || !item) return null;
-      const obj = item as UnknownRecord;
-      const company = String(obj.company || "");
-      const role = String(obj.title || obj.role || "");
-      if (!company && !role) return null;
-      const startDate = normalizeDate(obj.startDate || obj.start_date || "");
-      const endDate = normalizeDate(obj.endDate || obj.end_date || "");
-      return {
-        company: company || "Unknown",
-        role: role || "Position",
-        startDate: startDate || "2000-01",
-        endDate: endDate || "Present",
-        description: String(obj.description || ""),
-        technologies: Array.isArray(obj.technologies) ? obj.technologies.map((t) => String(t)) : [],
-      };
-    })
-    .filter((e) => e) as Experience[];
-}
-
-function parseLegacyEducations(eduData: unknown): Education[] {
-  if (!eduData || !Array.isArray(eduData)) return [];
-  return eduData
-    .map((item) => {
-      if (typeof item !== "object" || !item) return null;
-      const obj = item as UnknownRecord;
-      const institution = String(obj.school || obj.institution || "");
-      const degree = String(obj.degree || "");
-      if (!institution && !degree) return null;
-      return {
-        institution: institution || "Unknown",
-        degree: degree || "Degree",
-        fieldOfStudy: String(obj.major || obj.fieldOfStudy || ""),
-        startYear: typeof obj.startDate === "string" ? parseInt(obj.startDate.split("-")[0]) : typeof obj.startYear === "number" ? obj.startYear : undefined,
-        endYear: typeof obj.endDate === "string" ? parseInt(obj.endDate.split("-")[0]) : typeof obj.endYear === "number" ? obj.endYear : undefined,
-      };
-    })
-    .filter((e) => e) as Education[];
-}
-
-function parseLegacyCertificates(certData: unknown): Certification[] {
-  if (!certData || !Array.isArray(certData)) return [];
-  return certData
-    .map((item) => {
-      if (typeof item === "string") return { name: item };
-      if (typeof item !== "object" || !item) return null;
-      const obj = item as UnknownRecord;
-      return {
-        name: String(obj.name || ""),
-        issuer: String(obj.issuer || ""),
-        issueDate: normalizeDate(String(obj.issueDate || "")),
-      };
-    })
-    .filter((c) => c && c.name) as Certification[];
-}
-
-function parseLegacyProjects(projData: unknown): Project[] {
-  if (!projData || !Array.isArray(projData)) return [];
-  return projData
-    .map((item) => {
-      if (typeof item !== "object" || !item) return null;
-      const obj = item as UnknownRecord;
-      const name = String(obj.name || "");
-      if (!name) return null;
-      return {
-        name,
-        description: String(obj.description || ""),
-        technologies: Array.isArray(obj.technologies) ? obj.technologies.map((t) => String(t)) : [],
-        role: String(obj.role || ""),
-        link: String(obj.url || obj.link || ""),
-        startDate: normalizeDate(String(obj.startDate || "")),
-        endDate: normalizeDate(String(obj.endDate || "")),
-      };
-    })
-    .filter((p) => p) as Project[];
-}
-
-function parseLegacySocialLinks(socialData: unknown): SocialLinks {
-  if (!socialData || typeof socialData !== "object") return {};
-  const obj = socialData as UnknownRecord;
-  return {
-    linkedin: String(obj.linkedinUrl || obj.linkedin || "").trim() || undefined,
-    github: String(obj.githubUrl || obj.github || "").trim() || undefined,
-    portfolio: String(obj.portfolioUrl || obj.portfolio || "").trim() || undefined,
-  };
-}
-
 export function buildStructuredProfile(raw: UnknownRecord): StructuredProfile {
   const { firstName, lastName, fullName } = extractName(raw);
   
@@ -399,14 +329,14 @@ export function buildStructuredProfile(raw: UnknownRecord): StructuredProfile {
   const certifications = parseCertifications(raw.certifications) || [];
   const projects = parseProjects(raw.projects) || [];
   
-  const finalExperiences = experiences.length > 0 ? experiences : parseLegacyExperiences(raw.experiences);
-  const finalEducations = educations.length > 0 ? educations : parseLegacyEducations(raw.educations);
-  const finalCertifications = certifications.length > 0 ? certifications : parseLegacyCertificates(raw.certificates);
-  const finalProjects = projects.length > 0 ? projects : parseLegacyProjects(raw.projects);
+  const finalExperiences = experiences.length > 0 ? experiences : parseExperience(raw.experiences);
+  const finalEducations = educations.length > 0 ? educations : parseEducation(raw.educations);
+  const finalCertifications = certifications.length > 0 ? certifications : parseCertifications(raw.certificates);
+  const finalProjects = projects.length > 0 ? projects : parseProjects(raw.projects);
   
   let socialLinks = parseSocialLinks(raw.socialLinks || raw.social_links);
   if (!socialLinks || Object.keys(socialLinks).length === 0) {
-    socialLinks = parseLegacySocialLinks(raw.links);
+    socialLinks = parseSocialLinks(raw.links);
   }
   
   const headlineFromBio = String(raw.bio || "").trim();
@@ -441,9 +371,8 @@ export function buildStructuredProfile(raw: UnknownRecord): StructuredProfile {
 }
 
 export const normalizeApplicantPayload = (raw: UnknownRecord) => {
-  const { firstName, lastName, fullName } = extractName(raw);
+  const { fullName } = extractName(raw);
   
-  // FIX: Attach a random suffix if email doesn't exist to prevent MongoDB E11000 bulk duplicate crashes
   const randomSuffix = Math.random().toString(36).substring(2, 7);
   const cleanName = fullName.toLowerCase().replace(/\s+/g, ".");
   const fallbackEmail = `${cleanName}.${randomSuffix}@unknown.local`;
@@ -451,25 +380,35 @@ export const normalizeApplicantPayload = (raw: UnknownRecord) => {
 
   const structuredProfile = buildStructuredProfile(raw);
 
+  // FIX: Accurately calculate years using the finalized experience array
   const yearsFromExperienceObjects = (structuredProfile.experience ?? []).reduce((acc, entry) => {
     const startDate = String(entry.startDate || "");
     const endDate = String(entry.endDate || "");
     if (!startDate) return acc;
-    const start = new Date(`${startDate}-01`);
-    const end = endDate.toLowerCase() === "present" || !endDate ? new Date() : new Date(`${endDate}-01`);
+    
+    let start = new Date(`${startDate}-01`);
+    if (Number.isNaN(start.getTime())) start = new Date(startDate);
+    
+    let end = new Date();
+    if (endDate && endDate.toLowerCase() !== "present") {
+      end = new Date(`${endDate}-01`);
+      if (Number.isNaN(end.getTime())) end = new Date(endDate);
+    }
+
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return acc;
     const diffYears = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365));
     return acc + diffYears;
   }, 0);
 
   const yearsDirect = Number(raw.yearsOfExperience ?? raw.experienceYears ?? 0);
+  // Guarantee it doesn't fall back to 0 if we parsed dates
   const yearsOfExperience = yearsDirect > 0 ? yearsDirect : Math.max(0, Math.round(yearsFromExperienceObjects));
 
-  const education = Array.isArray(raw.education)
-    ? raw.education.map((item) => (typeof item === "string" ? item : (item as UnknownRecord)?.degree || JSON.stringify(item))).join(" | ")
+  const education = Array.isArray(structuredProfile.education) && structuredProfile.education.length > 0
+    ? structuredProfile.education.map(e => `${e.degree || ''} ${e.institution ? `at ${e.institution}` : ''}`.trim()).join(" | ")
     : typeof raw.education === "string" ? raw.education : "Not provided";
 
-  const skills = parseSkills(raw.skills).map((s) => s.name);
+  const skills = structuredProfile.skills?.map((s) => s.name) || [];
 
   const headline = String(raw.headline || raw.title || "").trim();
   const bio = String(raw.bio || raw.summary || "").trim();
