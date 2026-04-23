@@ -2,22 +2,10 @@
 
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import type { Applicant, StructuredProfile } from "@/lib/types";
 import {
-  ExternalLink,
-  Mail,
-  Phone,
-  MapPin,
-  Briefcase,
-  GraduationCap,
-  Award,
-  Code,
-  Globe,
-  Calendar,
-  X,
-  Database,
-  CheckCircle2
+  ExternalLink, Mail, Phone, MapPin, Briefcase, 
+  GraduationCap, Award, Code, Globe, Calendar, CheckCircle2
 } from "lucide-react";
 
 interface ApplicantDetailViewProps {
@@ -39,184 +27,194 @@ function formatDateRange(startDate?: string, endDate?: string): string {
   return `${startStr} — ${endStr}`;
 }
 
-export function ApplicantDetailView({ applicant, onClose }: ApplicantDetailViewProps) {
-  let profile = applicant.structuredProfile as StructuredProfile | undefined;
+const SectionHeader = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
+  <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100">
+    {icon}
+    <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+  </div>
+);
 
-  if (!profile || (typeof profile === "object" && Object.keys(profile).length === 0)) {
-    const nameParts = applicant.fullName?.split(" ") || ["Unknown"];
-    profile = {
-      firstName: nameParts[0] || "",
-      lastName: nameParts.slice(1).join(" ") || "",
-      email: applicant.email || "",
-      headline: applicant.summary || "",
-      location: "",
-      skills: applicant.skills?.map((s) => ({ name: s })) || [],
-      experience: [],
-      education: [],
-      languages: [],
-      certifications: [],
-      projects: [],
-    };
+export function ApplicantDetailView({ applicant }: ApplicantDetailViewProps) {
+  const profile = applicant.structuredProfile as StructuredProfile | undefined;
+
+  if (!profile || Object.keys(profile).length === 0) {
+    return (
+      <div className="p-8 text-center bg-gray-50 rounded-xl">
+        <p className="text-gray-500">No structured profile data available to display.</p>
+      </div>
+    );
   }
 
-  const safeProfile: StructuredProfile = {
-    ...profile,
-    skills: Array.isArray(profile.skills) ? profile.skills : [],
-    languages: Array.isArray(profile.languages) ? profile.languages : [],
-    experience: Array.isArray(profile.experience) ? profile.experience : [],
-    education: Array.isArray(profile.education) ? profile.education : [],
-    certifications: Array.isArray(profile.certifications) ? profile.certifications : [],
-    projects: Array.isArray(profile.projects) ? profile.projects : [],
-  };
-
   return (
-    <div className="max-w-4xl mx-auto bg-white min-h-screen">
-      <div className="flex justify-between items-start mb-6">
-        <div />
-        {onClose && (
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200" aria-label="Close">
-            <X className="w-6 h-6 text-black" />
-          </button>
-        )}
-      </div>
-
-      {/* Header Profile Card - Black & White aesthetic */}
-      <div className="bg-black text-white rounded-2xl p-8 mb-8 shadow-lg">
-        <div className="flex items-start justify-between mb-4">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Header Profile Section */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-4xl font-extrabold tracking-tight">
-              {safeProfile.firstName} {safeProfile.lastName}
+            <h1 className="text-3xl font-bold text-gray-900">
+              {profile.firstName} {profile.lastName}
             </h1>
-            {safeProfile.headline && <p className="text-xl text-green-400 font-medium mt-2">{safeProfile.headline}</p>}
+            {profile.headline && (
+              <p className="text-lg font-medium text-blue-700 mt-1">{profile.headline}</p>
+            )}
+            <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
+              {profile.location && (
+                <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {profile.location}</span>
+              )}
+              {profile.email && (
+                <span className="flex items-center gap-1.5"><Mail className="w-4 h-4" /> {profile.email}</span>
+              )}
+            </div>
           </div>
+          
+          {profile.availability && (
+            <div className="bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-1 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-3 w-3">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${profile.availability.status === 'Available' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
+                  <span className={`relative inline-flex rounded-full h-3 w-3 ${profile.availability.status === 'Available' ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                </span>
+                <span className="font-semibold">{profile.availability.status}</span>
+              </div>
+              <span className="text-gray-500">{profile.availability.type}</span>
+            </div>
+          )}
         </div>
 
-        {safeProfile.bio && <p className="text-gray-300 leading-relaxed mb-6 max-w-3xl">{safeProfile.bio}</p>}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-800">
-          {safeProfile.email && (
-            <div className="flex items-center gap-3 text-gray-200 hover:text-white transition">
-              <Mail className="w-5 h-5 text-green-400" />
-              <a href={`mailto:${safeProfile.email}`} className="font-medium">{safeProfile.email}</a>
-            </div>
-          )}
-          {applicant.phone && (
-            <div className="flex items-center gap-3 text-gray-200 hover:text-white transition">
-              <Phone className="w-5 h-5 text-green-400" />
-              <span className="font-medium">{applicant.phone}</span>
-            </div>
-          )}
-          {safeProfile.location && (
-            <div className="flex items-center gap-3 text-gray-200">
-              <MapPin className="w-5 h-5 text-green-400" />
-              <span className="font-medium">{safeProfile.location}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-3 text-gray-200">
-            <Briefcase className="w-5 h-5 text-green-400" />
-            <span className="font-medium">{applicant.yearsOfExperience} years of experience</span>
+        {profile.bio && (
+          <div className="mt-6 bg-white/60 p-4 rounded-xl text-gray-700 text-sm leading-relaxed">
+            {profile.bio}
           </div>
-        </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-8">
-        {/* Work Experience */}
-        {safeProfile.experience && safeProfile.experience.length > 0 && (
-          <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="p-2 bg-green-50 rounded-lg"><Briefcase className="w-6 h-6 text-green-600" /></div>
-              <h2 className="text-2xl font-bold text-black">Professional Experience</h2>
-            </div>
-            <div className="space-y-6">
-              {safeProfile.experience.map((exp, idx) => (
-                <div key={idx} className="relative pl-6 border-l-2 border-green-100 pb-2">
-                  <div className="absolute w-3 h-3 bg-green-500 rounded-full -left-[7px] top-2 border-2 border-white"></div>
-                  <h3 className="text-xl font-bold text-black">{exp.role}</h3>
-                  <div className="flex flex-wrap items-center gap-2 mt-1 mb-3">
-                    <span className="text-green-700 font-semibold">{exp.company}</span>
-                    <span className="text-gray-300">•</span>
-                    <span className="text-sm font-medium text-gray-500 bg-gray-50 px-2 py-1 rounded-md">
-                      {formatDateRange(exp.startDate, exp.endDate)}
-                    </span>
+      {/* Grid Layout for Core Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left Column (Wider) */}
+        <div className="lg:col-span-2 space-y-8">
+          
+          {/* Experience */}
+          {profile.experience && profile.experience.length > 0 && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <SectionHeader icon={<Briefcase className="w-5 h-5 text-blue-600" />} title="Work Experience" />
+              <div className="space-y-6">
+                {profile.experience.map((exp, i) => (
+                  <div key={i} className="relative pl-4 border-l-2 border-blue-100">
+                    <div className="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1.5" />
+                    <h4 className="font-bold text-gray-900 text-lg">{exp.role}</h4>
+                    <p className="font-medium text-blue-600">{exp.company}</p>
+                    <p className="text-sm text-gray-500 mb-2 flex items-center gap-1.5 mt-1">
+                      <Calendar className="w-3.5 h-3.5" /> {formatDateRange(exp.startDate, exp.endDate)}
+                    </p>
+                    {exp.description && <p className="text-gray-700 text-sm mt-2">{exp.description}</p>}
+                    {exp.technologies && exp.technologies.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {exp.technologies.map((tech, j) => (
+                          <Badge key={j} variant="secondary" className="bg-gray-100 text-gray-700 hover:bg-gray-200">{tech}</Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {exp.description && <p className="text-gray-600 leading-relaxed mb-4">{exp.description}</p>}
-                  {exp.technologies && exp.technologies.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {exp.technologies.map((tech, i) => (
-                        <Badge key={i} className="bg-black text-white hover:bg-gray-800">{tech}</Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Education - Unified Degree Elements */}
-        {safeProfile.education && safeProfile.education.length > 0 && (
-          <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="p-2 bg-green-50 rounded-lg"><GraduationCap className="w-6 h-6 text-green-600" /></div>
-              <h2 className="text-2xl font-bold text-black">Education</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {safeProfile.education.map((edu, idx) => (
-                <div key={idx} className="p-6 bg-gray-50 rounded-xl border border-gray-100">
-                  <h3 className="text-lg font-bold text-black mb-1">{edu.degree}</h3>
-                  <p className="text-green-700 font-semibold mb-2">{edu.institution}</p>
-                  {edu.fieldOfStudy && (
-                    <p className="text-sm text-gray-600 mb-2">Field of Study: <span className="font-medium text-black">{edu.fieldOfStudy}</span></p>
-                  )}
-                  {(edu.startYear || edu.endYear) && (
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-500">
-                        {edu.startYear || "N/A"} — {edu.endYear || "Present"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Skills - Detailed UI */}
-        {safeProfile.skills && safeProfile.skills.length > 0 && (
-          <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <div className="p-2 bg-green-50 rounded-lg"><Code className="w-6 h-6 text-green-600" /></div>
-              <h2 className="text-2xl font-bold text-black">Technical Skills</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {safeProfile.skills.map((skill, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                  <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                  <div className="flex-grow">
-                    <p className="font-bold text-black">{skill.name}</p>
-                    {skill.level && <p className="text-xs font-medium text-green-600 mt-0.5">{skill.level}</p>}
+          {/* Projects */}
+          {profile.projects && profile.projects.length > 0 && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <SectionHeader icon={<Code className="w-5 h-5 text-purple-600" />} title="Projects" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {profile.projects.map((project, i) => (
+                  <div key={i} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    <h4 className="font-bold text-gray-900">{project.name}</h4>
+                    {project.role && <p className="text-sm font-medium text-purple-600">{project.role}</p>}
+                    {project.description && <p className="text-sm text-gray-600 mt-2 line-clamp-3">{project.description}</p>}
+                    {project.link && (
+                      <a href={project.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 mt-3 hover:underline">
+                        View Project <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* USER SYSTEM PRESERVATION: 
-          Per strict rules "donot remove anything", I have hidden the unappealing Raw Database Output section 
-          using a comment block rather than deleting the code completely from your application infrastructure. 
-        */}
-        {/* {applicant.profileData && Object.keys(applicant.profileData).length > 0 && (
-          <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-sm">
-            <SectionHeader icon={<Database className="w-5 h-5 text-gray-600" />} title="Raw Database Entry (Atlas)" />
-            <p className="text-xs text-gray-500 mb-4">Complete raw data extracted exactly as it was provided from the source file.</p>
-            <pre className="text-xs bg-white p-4 rounded-lg border border-gray-200 overflow-auto max-h-96 text-gray-800 font-mono shadow-inner">
-              {JSON.stringify(applicant.profileData, null, 2)}
-            </pre>
+        {/* Right Column (Sidebar) */}
+        <div className="space-y-6">
+          
+          {/* Skills */}
+          {profile.skills && profile.skills.length > 0 && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <SectionHeader icon={<CheckCircle2 className="w-5 h-5 text-green-600" />} title="Skills" />
+              <div className="flex flex-col gap-3">
+                {profile.skills.map((skill, i) => (
+                  <div key={i} className="flex justify-between items-center p-3 rounded-lg bg-gray-50 border border-gray-100">
+                    <span className="font-semibold text-gray-800">{skill.name}</span>
+                    {skill.level && (
+                      <Badge className="bg-green-100 text-green-700 border-none hover:bg-green-200 shadow-none">
+                        {skill.level}
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Education */}
+          {profile.education && profile.education.length > 0 && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <SectionHeader icon={<GraduationCap className="w-5 h-5 text-orange-600" />} title="Education" />
+              <div className="space-y-4">
+                {profile.education.map((edu, i) => (
+                  <div key={i}>
+                    <h4 className="font-bold text-gray-900">{edu.degree} {edu.fieldOfStudy && `in ${edu.fieldOfStudy}`}</h4>
+                    <p className="text-sm text-gray-600">{edu.institution}</p>
+                    {(edu.startYear || edu.endYear) && (
+                      <p className="text-xs text-gray-500 mt-1">{edu.startYear} - {edu.endYear || "Present"}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Languages & Certifications Combined Block */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-6">
+            {profile.languages && profile.languages.length > 0 && (
+              <div>
+                <SectionHeader icon={<Globe className="w-5 h-5 text-teal-600" />} title="Languages" />
+                <div className="flex flex-wrap gap-2">
+                  {profile.languages.map((lang, i) => (
+                    <Badge key={i} variant="outline" className="text-sm py-1 px-3">
+                      {lang.name} <span className="text-gray-400 ml-1">({lang.proficiency})</span>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {profile.certifications && profile.certifications.length > 0 && (
+              <div>
+                <SectionHeader icon={<Award className="w-5 h-5 text-yellow-600" />} title="Certifications" />
+                <div className="space-y-3">
+                  {profile.certifications.map((cert, i) => (
+                    <div key={i} className="flex flex-col">
+                      <span className="font-medium text-gray-900 text-sm">{cert.name}</span>
+                      <span className="text-xs text-gray-500">{cert.issuer} {cert.issueDate && `• ${cert.issueDate}`}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )} 
-        */}
+
+        </div>
       </div>
     </div>
   );
