@@ -23,6 +23,11 @@ export default function DashboardPage() {
     };
   } | null>(null);
 
+  // Pagination states
+  const [shortPage, setShortPage] = useState(1);
+  const [unshortPage, setUnshortPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
   const latestCompleted = useMemo(
     () => screenings?.find((screening) => screening.status === "completed"),
     [screenings]
@@ -43,17 +48,56 @@ export default function DashboardPage() {
     [applicants, shortlistedIds]
   );
 
+  // Apply pagination slices
+  const paginatedShortlisted = shortlisted.slice((shortPage - 1) * ITEMS_PER_PAGE, shortPage * ITEMS_PER_PAGE);
+  const paginatedUnshortlisted = unshortlisted.slice((unshortPage - 1) * ITEMS_PER_PAGE, unshortPage * ITEMS_PER_PAGE);
+
   const closePreview = () => setPreviewOpen(false);
 
-  // Helper function to professionally format varying data types in the applicant profile
+  // Helper to extract the most accurate name
+  const getApplicantName = (candidate: any) => {
+    if (candidate?.fullName) return candidate.fullName;
+    if (candidate?.structuredProfile?.firstName) {
+      return `${candidate.structuredProfile.firstName} ${candidate.structuredProfile.lastName || ''}`.trim();
+    }
+    return "Unknown Candidate";
+  };
+
+  // Helper function to dynamically parse and format objects instead of showing "Complex data"
   const formatApplicantData = (value: unknown) => {
     if (value === null || value === undefined || value === "") return <span className="text-gray-400 italic">Not provided</span>;
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : <span className="text-gray-400 italic">None</span>;
-    if (typeof value === "object") return <span className="text-gray-500 italic">Complex data</span>; // Safely handle unexpected nested objects
+    
+    // Better handling for objects
+    if (typeof value === "object") {
+      try {
+        return (
+          <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
+            {Object.entries(value).map(([k, v]) => {
+              if (v === null || v === undefined || v === "") return null;
+              // Prevent infinite deep nesting
+              if (typeof v === "object") {
+                 // Check if it's an array to join it, otherwise skip deep render
+                 if (Array.isArray(v)) {
+                   return <li key={k}><span className="font-semibold text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}:</span> {v.join(", ")}</li>;
+                 }
+                 return null;
+              }
+              return (
+                <li key={k}>
+                  <span className="font-semibold text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}:</span> {String(v)}
+                </li>
+              );
+            })}
+          </ul>
+        );
+      } catch {
+        return <span className="text-gray-500 italic">Complex data</span>;
+      }
+    }
     
     const strValue = String(value);
-    // Automatically detect and format URLs (like LinkedIn, GitHub, or Portfolio links)
     if (strValue.startsWith("http://") || strValue.startsWith("https://")) {
       return (
         <a href={strValue} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
@@ -63,6 +107,19 @@ export default function DashboardPage() {
     }
     return <span className="break-words">{strValue}</span>;
   };
+
+  // Helper to merge root and structured profile for the UI loop
+  const getProfileDisplayData = (applicant: any) => {
+    if (!applicant) return {};
+    return { ...applicant, ...(applicant.structuredProfile || {}) };
+  };
+
+  // Fields to hide from the dynamic loop since they are DB clutter or already shown
+  const ignoredKeys = [
+    "_id", "id", "fullName", "firstName", "lastName", "email", 
+    "phone", "location", "__v", "createdAt", "updatedAt", 
+    "profileData", "structuredProfile", "raw"
+  ];
 
   return (
     <>
@@ -120,15 +177,15 @@ export default function DashboardPage() {
         {/* Candidates Section */}
         <section className="grid gap-6 lg:grid-cols-2">
           {/* Shortlisted Column */}
-          <article className="rounded-xl border border-border bg-white p-6 shadow-sm">
+          <article className="flex flex-col rounded-xl border border-border bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Shortlisted Candidates</h3>
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                 {shortlisted.length}
               </span>
             </div>
-            <div className="space-y-3">
-              {shortlisted.map((candidate) => (
+            <div className="flex-1 space-y-3">
+              {paginatedShortlisted.map((candidate) => (
                 <button
                   key={candidate._id}
                   type="button"
@@ -148,7 +205,7 @@ export default function DashboardPage() {
                   }}
                 >
                   <div>
-                    <span className="block text-sm font-semibold text-gray-900 group-hover:text-primary transition-colors">{candidate.fullName}</span>
+                    <span className="block text-sm font-semibold text-gray-900 group-hover:text-primary transition-colors">{getApplicantName(candidate)}</span>
                     <span className="block text-xs text-gray-500 mt-0.5">View AI Insights</span>
                   </div>
                   <svg className="h-5 w-5 text-gray-400 group-hover:text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -162,18 +219,43 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+            
+            {/* Shortlisted Pagination Controls */}
+            {shortlisted.length > ITEMS_PER_PAGE && (
+              <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShortPage(p => Math.max(1, p - 1))}
+                  disabled={shortPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs text-gray-500 font-medium">
+                  Page {shortPage} of {Math.ceil(shortlisted.length / ITEMS_PER_PAGE)}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShortPage(p => Math.min(Math.ceil(shortlisted.length / ITEMS_PER_PAGE), p + 1))}
+                  disabled={shortPage === Math.ceil(shortlisted.length / ITEMS_PER_PAGE)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </article>
 
           {/* Unshortlisted Column */}
-          <article className="rounded-xl border border-border bg-white p-6 shadow-sm">
+          <article className="flex flex-col rounded-xl border border-border bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Unshortlisted Candidates</h3>
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600">
                 {unshortlisted.length}
               </span>
             </div>
-            <div className="space-y-3">
-              {unshortlisted.map((candidate) => (
+            <div className="flex-1 space-y-3">
+              {paginatedUnshortlisted.map((candidate) => (
                 <button
                   key={candidate._id}
                   type="button"
@@ -190,7 +272,7 @@ export default function DashboardPage() {
                   }}
                 >
                   <div>
-                    <span className="block text-sm font-semibold text-gray-900">{candidate.fullName}</span>
+                    <span className="block text-sm font-semibold text-gray-900">{getApplicantName(candidate)}</span>
                     <span className="block text-xs text-gray-500 mt-0.5">View Profile</span>
                   </div>
                   <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -204,6 +286,31 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* Unshortlisted Pagination Controls */}
+            {unshortlisted.length > ITEMS_PER_PAGE && (
+              <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setUnshortPage(p => Math.max(1, p - 1))}
+                  disabled={unshortPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs text-gray-500 font-medium">
+                  Page {unshortPage} of {Math.ceil(unshortlisted.length / ITEMS_PER_PAGE)}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setUnshortPage(p => Math.min(Math.ceil(unshortlisted.length / ITEMS_PER_PAGE), p + 1))}
+                  disabled={unshortPage === Math.ceil(unshortlisted.length / ITEMS_PER_PAGE)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </article>
         </section>
       </div>
@@ -225,7 +332,7 @@ export default function DashboardPage() {
                   {selectedPreview.title}
                 </p>
                 <h3 className="text-2xl font-bold text-gray-900">
-                  {selectedPreview.content.applicant?.fullName || "Candidate Profile"}
+                  {getApplicantName(selectedPreview.content.applicant)}
                 </h3>
               </div>
               <Button variant="ghost" className="h-10 w-10 rounded-full p-0 hover:bg-gray-200" onClick={closePreview}>
@@ -278,24 +385,23 @@ export default function DashboardPage() {
                   Applicant Information
                 </h4>
                 <dl className="space-y-4 text-sm">
-                  {/* Fixed top priority fields */}
+                  {/* Fixed top priority fields leveraging structured profile directly */}
                   <div className="grid grid-cols-3 gap-4">
                     <dt className="font-medium text-gray-500">Email Address</dt>
-                    <dd className="col-span-2 text-gray-900">{formatApplicantData(selectedPreview.content.applicant?.email)}</dd>
+                    <dd className="col-span-2 text-gray-900">{formatApplicantData(selectedPreview.content.applicant?.email || selectedPreview.content.applicant?.structuredProfile?.email)}</dd>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <dt className="font-medium text-gray-500">Phone Number</dt>
-                    <dd className="col-span-2 text-gray-900">{formatApplicantData(selectedPreview.content.applicant?.phone)}</dd>
+                    <dd className="col-span-2 text-gray-900">{formatApplicantData(selectedPreview.content.applicant?.phone || selectedPreview.content.applicant?.structuredProfile?.phone)}</dd>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <dt className="font-medium text-gray-500">Location</dt>
-                    <dd className="col-span-2 text-gray-900">{formatApplicantData(selectedPreview.content.applicant?.location)}</dd>
+                    <dd className="col-span-2 text-gray-900">{formatApplicantData(selectedPreview.content.applicant?.location || selectedPreview.content.applicant?.structuredProfile?.location)}</dd>
                   </div>
                   
-                  {/* Dynamic rendering for all other fields using the formatter */}
-                  {Object.entries(selectedPreview.content.applicant || {}).map(([key, value]) => {
-                    // Skip basic fields already rendered or internal database keys
-                    if (["_id", "id", "fullName", "email", "phone", "location", "__v", "createdAt", "updatedAt"].includes(key)) return null;
+                  {/* Dynamic rendering with flattened data */}
+                  {Object.entries(getProfileDisplayData(selectedPreview.content.applicant)).map(([key, value]) => {
+                    if (ignoredKeys.includes(key)) return null;
                     
                     return (
                       <div className="grid grid-cols-3 gap-4 border-t border-gray-50 pt-2" key={key}>
