@@ -15,25 +15,22 @@ export function ApplicantDetailModal({ applicant, isOpen, onClose }: ApplicantDe
   if (!isOpen || !applicant) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-start justify-center pt-6 pb-8 px-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto flex flex-col">
-        {/* Sticky close bar */}
-        <div className="sticky top-0 z-10 flex justify-end p-3 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-start justify-center pt-8 pb-8">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        {/* Modal header with close button */}
+        <div className="sticky top-0 z-10 flex justify-end p-4 bg-white border-b border-gray-200">
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-black"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Close modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Detail view body — onClose NOT passed so no second X button renders */}
-        <div className="p-5 md:p-8 flex-1">
-          <ApplicantDetailView applicant={applicant} />
+        {/* Modal body */}
+        <div className="p-6 md:p-8">
+          <ApplicantDetailView applicant={applicant} onClose={onClose} />
         </div>
       </div>
     </div>
