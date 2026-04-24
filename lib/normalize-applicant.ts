@@ -145,7 +145,7 @@ function parseSkills(skillsData: unknown): Skill[] {
         }
         return null;
       })
-      .filter((s): s is Skill => !!s && !!s.name);
+      .filter((s) => s !== null && !!s.name) as Skill[];
   }
 
   if (typeof parsed === "string") {
@@ -176,7 +176,7 @@ function parseLanguages(langData: unknown): Language[] {
         }
         return null;
       })
-      .filter((l): l is Language => !!l && !!l.name);
+      .filter((l) => l !== null && !!l.name) as Language[];
   }
 
   if (typeof parsed === "string") {
@@ -249,7 +249,7 @@ function parseExperience(expData: unknown): Experience[] {
         isCurrent: endDateFinal === "Present",
       };
     })
-    .filter((e): e is Experience => !!e);
+    .filter((e) => e !== null) as Experience[];
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +299,7 @@ function parseEducation(eduData: unknown): Education[] {
         endYear,
       };
     })
-    .filter((e): e is Education => !!e);
+    .filter((e) => e !== null) as Education[];
 }
 
 // ---------------------------------------------------------------------------
@@ -325,7 +325,7 @@ function parseCertifications(certData: unknown): Certification[] {
         ) || undefined,
       };
     })
-    .filter((c): c is Certification => !!c);
+    .filter((c) => c !== null) as Certification[];
 }
 
 // ---------------------------------------------------------------------------
@@ -370,7 +370,7 @@ function parseProjects(projData: unknown): Project[] {
         endDate: normalizeDate(obj.endDate ?? obj.end_date ?? obj["End Date"]) || undefined,
       };
     })
-    .filter((p): p is Project => !!p);
+    .filter((p) => p !== null) as Project[];
 }
 
 // ---------------------------------------------------------------------------
