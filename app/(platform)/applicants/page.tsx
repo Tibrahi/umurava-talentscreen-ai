@@ -199,8 +199,8 @@ const ApplicantRow = React.memo(
     applicant: Applicant;
     isSelected: boolean;
     onCheckboxChange: (id: string) => void;
-    onView: () => void;
-    onEdit: (applicant: Applicant) => void;
+    onView: () => void | Promise<void>;
+    onEdit: (applicant: Applicant) => void | Promise<void>;
     onDelete: (applicant: Applicant) => Promise<void>;
   }) => {
     const [deleting, setDeleting] = useState(false);
@@ -852,6 +852,34 @@ export default function ApplicantsPage() {
 
             {/* Toolbar */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Force re-sync: refetch all + rebuild structuredProfile from raw for every applicant */}
+              <button
+                onClick={async () => {
+                  try {
+                    setStatus({ type: "info", text: "Force-syncing all profiles from raw source data…" });
+                    const result = await refetch();
+                    const all = result.data ?? [];
+                    let rebuilt = 0;
+                    for (const app of all) {
+                      const raw = (app as any).profileData?.raw as Record<string, unknown> | undefined;
+                      if (raw) {
+                        const freshProfile = buildStructuredProfile(raw);
+                        await updateApplicant({ id: app._id, data: { ...app, structuredProfile: freshProfile } }).unwrap();
+                        rebuilt++;
+                      }
+                    }
+                    await refetch();
+                    setStatus({ type: "success", text: `Re-synced ${rebuilt} profile(s) from source data.` });
+                  } catch (error) {
+                    setStatus({ type: "error", text: getErrorMessage(error, "Force re-sync failed.") });
+                  }
+                }}
+                title="Rebuild every profile's structuredProfile from its original raw source data"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Force Re-sync
+              </button>
               {hasDuplicates && (
                 <button
                   onClick={() => setShowDuplicates(!showDuplicates)}
@@ -1004,16 +1032,41 @@ export default function ApplicantsPage() {
               applicant={applicant}
               isSelected={selectedCheckboxes.has(applicant._id)}
               onCheckboxChange={handleCheckboxChange}
-              onView={() => {
+              onView={async () => {
+                // Show immediately with cached data (instant UI response)
                 setModalApplicant(applicant);
                 setModalOpen(true);
+                // Force-fetch fresh data from server and update modal
+                try {
+                  const result = await refetch();
+                  const freshApp = result.data?.find((a) => a._id === applicant._id);
+                  if (freshApp) setModalApplicant(freshApp as Applicant);
+                } catch {
+                  // Modal already open with cached data — that's fine
+                }
               }}
-              onEdit={(app) => {
+              onEdit={async (app) => {
                 setEditingId(app._id);
                 setMode("json");
-                const profile = app.structuredProfile || app;
+
+                // Force-fetch latest data from server first
+                let freshApp: Applicant = app;
+                try {
+                  const result = await refetch();
+                  freshApp = (result.data?.find((a) => a._id === app._id) as Applicant) ?? app;
+                } catch {
+                  // Fall back to cached data
+                }
+
+                // Prefer rebuilding from the original raw source data so nothing
+                // that was in the source file (experience, languages, certs, projects)
+                // gets silently dropped by a stale structuredProfile in the DB.
+                const raw = (freshApp as any).profileData?.raw as Record<string, unknown> | undefined;
+                const profile = raw
+                  ? buildStructuredProfile(raw)
+                  : ((freshApp.structuredProfile as object) ?? freshApp);
+
                 setJsonValue(JSON.stringify(profile, null, 2));
-                // Scroll to top
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }}
               onDelete={async (app) => {
