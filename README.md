@@ -309,9 +309,9 @@ Raw Input → Normalization → Structured Profile → Database → AI Screening
 
 ## Recommended
 
-* Frontend: Vercel
-* Backend: Render / Railway
+* Frontend+Backend : Vercel
 * Database: MongoDB Atlas
+* Gemini Api : google ai studio
 
 ---
 
@@ -320,8 +320,7 @@ Raw Input → Normalization → Structured Profile → Database → AI Screening
 * Live deployed application
 * Functional AI screening system
 * Clean, structured codebase
-* This README (documentation)
-* Presentation slides (2 max)
+* Fast & Quick Runtime system 
 
 ---
 

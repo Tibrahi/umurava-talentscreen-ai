@@ -41,13 +41,9 @@ import {
   CloudUpload,
 } from "lucide-react";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+type UnknownRecord = Record<string, unknown>;
 
-/** Resolve the best display name from an applicant record */
 function resolveDisplayName(applicant: Applicant): string {
-  // 1. Try full name if it's not a placeholder
   if (
     applicant.fullName &&
     applicant.fullName !== "Unknown Candidate" &&
@@ -56,7 +52,6 @@ function resolveDisplayName(applicant: Applicant): string {
     return applicant.fullName;
   }
 
-  // 2. Try structured profile name
   const sp = applicant.structuredProfile as StructuredProfile | undefined;
   if (sp) {
     const first = sp.firstName?.trim() || "";
@@ -64,7 +59,6 @@ function resolveDisplayName(applicant: Applicant): string {
     if (first || last) return `${first} ${last}`.trim();
   }
 
-  // 3. Derive from email
   const emailLocal = (applicant.email || "").split("@")[0];
   if (emailLocal && !emailLocal.includes("unknown")) {
     return emailLocal
@@ -77,20 +71,16 @@ function resolveDisplayName(applicant: Applicant): string {
   return "—";
 }
 
-/** Resolve display email – hide auto-generated unknown.local emails */
 function resolveDisplayEmail(applicant: Applicant): string {
   const sp = applicant.structuredProfile as StructuredProfile | undefined;
 
-  // Prefer structured profile email if it's a real address
   if (sp?.email && !sp.email.endsWith("@unknown.local")) return sp.email;
 
-  // Fall back to top-level email if real
   if (applicant.email && !applicant.email.endsWith("@unknown.local")) return applicant.email;
 
   return "—";
 }
 
-/** Get skills from structured profile (preferred) or flat array */
 function resolveSkills(applicant: Applicant): string[] {
   const sp = applicant.structuredProfile as StructuredProfile | undefined;
   if (sp?.skills && sp.skills.length > 0) {
@@ -99,14 +89,8 @@ function resolveSkills(applicant: Applicant): string[] {
   return applicant.skills || [];
 }
 
-// ---------------------------------------------------------------------------
-// Upload Tab Types
-// ---------------------------------------------------------------------------
 type UploadMode = "json" | "csv" | "excel" | "pdf" | "url";
 
-// ---------------------------------------------------------------------------
-// Drag-and-Drop File Upload Zone
-// ---------------------------------------------------------------------------
 interface DropZoneProps {
   accept: string;
   multiple?: boolean;
@@ -184,9 +168,6 @@ function DropZone({ accept, multiple, label, hint, icon, onFiles, loading }: Dro
   );
 }
 
-// ---------------------------------------------------------------------------
-// Applicant Card Row
-// ---------------------------------------------------------------------------
 const ApplicantRow = React.memo(
   ({
     applicant,
@@ -235,7 +216,6 @@ const ApplicantRow = React.memo(
         `}
         onClick={onView}
       >
-        {/* Checkbox */}
         <div onClick={(e) => e.stopPropagation()}>
           <input
             type="checkbox"
@@ -245,7 +225,6 @@ const ApplicantRow = React.memo(
           />
         </div>
 
-        {/* Avatar */}
         <div className={`
           w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0
           ${isDuplicate ? "bg-yellow-200 text-yellow-800" : "bg-black text-white"}
@@ -253,7 +232,6 @@ const ApplicantRow = React.memo(
           {displayName !== "—" ? displayName.charAt(0).toUpperCase() : "?"}
         </div>
 
-        {/* Main Info */}
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-gray-900 text-sm truncate">{displayName}</span>
@@ -267,7 +245,6 @@ const ApplicantRow = React.memo(
           <p className="text-xs text-gray-500 truncate mt-0.5">{displayEmail}</p>
         </div>
 
-        {/* Skills */}
         <div className="hidden md:flex items-center gap-1 flex-shrink-0 max-w-[180px]">
           {skills.slice(0, 2).map((s, i) => (
             <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full truncate max-w-[80px]">
@@ -279,13 +256,11 @@ const ApplicantRow = React.memo(
           )}
         </div>
 
-        {/* Experience */}
         <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
           <span className="text-xs text-gray-400">{applicant.yearsOfExperience ?? 0}y exp</span>
           {expCount > 0 && <span className="text-xs text-gray-300">· {expCount} roles</span>}
         </div>
 
-        {/* Source Badge */}
         <div className="hidden lg:block flex-shrink-0">
           <span className={`
             text-xs px-2 py-0.5 rounded-full font-medium uppercase tracking-wide
@@ -298,7 +273,6 @@ const ApplicantRow = React.memo(
           </span>
         </div>
 
-        {/* Actions */}
         <div
           className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => e.stopPropagation()}
@@ -332,9 +306,6 @@ const ApplicantRow = React.memo(
 );
 ApplicantRow.displayName = "ApplicantRow";
 
-// ---------------------------------------------------------------------------
-// Upload Mode Tab
-// ---------------------------------------------------------------------------
 const MODE_TABS: { id: UploadMode; label: string; icon: React.ReactNode }[] = [
   { id: "json",  label: "JSON",    icon: <FileJson className="w-4 h-4" /> },
   { id: "csv",   label: "CSV",     icon: <FileSpreadsheet className="w-4 h-4" /> },
@@ -343,9 +314,6 @@ const MODE_TABS: { id: UploadMode; label: string; icon: React.ReactNode }[] = [
   { id: "url",   label: "URL",     icon: <Link2 className="w-4 h-4" /> },
 ];
 
-// ---------------------------------------------------------------------------
-// Main Page
-// ---------------------------------------------------------------------------
 export default function ApplicantsPage() {
   const { data: applicants, error: applicantsError, refetch, isLoading: applicantsLoading } = useGetApplicantsQuery();
   const [createApplicant] = useCreateApplicantMutation();
@@ -361,7 +329,6 @@ export default function ApplicantsPage() {
   const [urlInput, setUrlInput]         = useState("");
   const [urlLoading, setUrlLoading]     = useState(false);
 
-  // Modal
   const [modalApplicant, setModalApplicant] = useState<Applicant | null>(null);
   const [modalOpen, setModalOpen]           = useState(false);
 
@@ -372,18 +339,12 @@ export default function ApplicantsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSource, setFilterSource] = useState<string>("all");
 
-  // ---------------------------------------------------------------------------
-  // Duplicate detection
-  // ---------------------------------------------------------------------------
   const duplicateGroups = useMemo(
     () => (applicants ? detectDuplicates(applicants, 0.7) : new Map()),
     [applicants]
   );
   const hasDuplicates = duplicateGroups.size > 0;
 
-  // ---------------------------------------------------------------------------
-  // Filtered applicants
-  // ---------------------------------------------------------------------------
   const filteredApplicants = useMemo(() => {
     let list = applicants ?? [];
 
@@ -404,9 +365,23 @@ export default function ApplicantsPage() {
     return list;
   }, [applicants, searchQuery, filterSource]);
 
-  // ---------------------------------------------------------------------------
-  // Submission handlers
-  // ---------------------------------------------------------------------------
+  const extractOriginalRaw = useCallback((applicant: Applicant): UnknownRecord => {
+    const rawData = (applicant as any).profileData?.raw;
+    if (rawData) {
+      let current = rawData;
+      while (current && typeof current === "object") {
+        if (current.raw && typeof current.raw === "object") {
+          current = current.raw;
+        } else {
+          break;
+        }
+      }
+      return current as UnknownRecord;
+    }
+    const { profileData, structuredProfile, ...rest } = applicant as any;
+    return rest;
+  }, []);
+
   const onStructuredJsonSubmit = useCallback(async () => {
     try {
       if (!jsonValue.trim()) return;
@@ -522,9 +497,6 @@ export default function ApplicantsPage() {
     }
   }, [urlInput, bulkApplicants, refetch]);
 
-  // ---------------------------------------------------------------------------
-  // Selection & bulk actions
-  // ---------------------------------------------------------------------------
   const handleCheckboxChange = useCallback((id: string) => {
     setSelectedCheckboxes((prev) => {
       const next = new Set(prev);
@@ -583,9 +555,43 @@ export default function ApplicantsPage() {
     }
   }, [selectedCheckboxes, applicants, updateApplicant, refetch]);
 
-  // ---------------------------------------------------------------------------
-  // JSON editor placeholder text
-  // ---------------------------------------------------------------------------
+  const handleForceResync = useCallback(async () => {
+    try {
+      setStatus({ type: "info", text: "Force-syncing all profiles from original source data…" });
+      const result = await refetch();
+      const all = result.data ?? [];
+      let rebuilt = 0;
+      for (const app of all) {
+        const raw = extractOriginalRaw(app as Applicant);
+        if (raw && Object.keys(raw).length > 0) {
+          const freshProfile = buildStructuredProfile(raw);
+          await updateApplicant({ id: app._id, data: { ...app, structuredProfile: freshProfile } }).unwrap();
+          rebuilt++;
+        }
+      }
+      await refetch();
+      setStatus({ type: "success", text: `Re-synced ${rebuilt} profile(s) from source data.` });
+    } catch (error) {
+      setStatus({ type: "error", text: getErrorMessage(error, "Force re-sync failed.") });
+    }
+  }, [refetch, updateApplicant, extractOriginalRaw]);
+
+  const handleEdit = useCallback(async (app: Applicant) => {
+    setEditingId(app._id);
+    setMode("json");
+
+    let freshApp: Applicant = app;
+    try {
+      const result = await refetch();
+      freshApp = (result.data?.find((a) => a._id === app._id) as Applicant) ?? app;
+    } catch {}
+
+    const raw = extractOriginalRaw(freshApp);
+    const profile = buildStructuredProfile(raw);
+    setJsonValue(JSON.stringify(profile, null, 2));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [extractOriginalRaw, refetch]);
+
   const jsonPlaceholder =
     jsonMode === "batch"
       ? `[
@@ -616,13 +622,9 @@ export default function ApplicantsPage() {
   ]
 }`;
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
   return (
-    <div className="space-y-6 max-w-6xl mx-auto px-4 sm:px-6 pb-16">
+    <div className="space-y-6 w-full max-w-[1400px] mx-auto px-4 sm:px-6 pb-16">
 
-      {/* Status Banner */}
       {status && (
         <div className="sticky top-0 z-30 pt-4">
           <ActionMessage type={status.type} message={status.text} />
@@ -636,12 +638,9 @@ export default function ApplicantsPage() {
         />
       )}
 
-      {/* Data Migration Panel */}
       {applicants && applicants.length > 0 && <DataMigrationPanel />}
 
-      {/* ─── Upload Section ─────────────────────────────────────────────────── */}
       <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
           <div className="p-2 bg-black rounded-lg">
             <CloudUpload className="w-5 h-5 text-white" />
@@ -652,7 +651,6 @@ export default function ApplicantsPage() {
           </div>
         </div>
 
-        {/* Mode Tabs */}
         <div className="flex gap-1 px-6 pt-4 border-b border-gray-100 pb-0 overflow-x-auto">
           {MODE_TABS.map((tab) => (
             <button
@@ -674,10 +672,8 @@ export default function ApplicantsPage() {
         </div>
 
         <div className="px-6 py-6">
-          {/* ── JSON Mode ── */}
           {mode === "json" && (
             <div className="space-y-4">
-              {/* Single / Batch toggle */}
               <div className="flex gap-2">
                 {(["single", "batch"] as const).map((m) => (
                   <button
@@ -742,7 +738,6 @@ export default function ApplicantsPage() {
             </div>
           )}
 
-          {/* ── CSV Mode ── */}
           {mode === "csv" && (
             <div className="space-y-3">
               <p className="text-sm text-gray-500">
@@ -759,7 +754,6 @@ export default function ApplicantsPage() {
             </div>
           )}
 
-          {/* ── Excel Mode ── */}
           {mode === "excel" && (
             <div className="space-y-3">
               <p className="text-sm text-gray-500">
@@ -776,7 +770,6 @@ export default function ApplicantsPage() {
             </div>
           )}
 
-          {/* ── PDF Mode ── */}
           {mode === "pdf" && (
             <div className="space-y-3">
               <p className="text-sm text-gray-500">
@@ -794,7 +787,6 @@ export default function ApplicantsPage() {
             </div>
           )}
 
-          {/* ── URL Mode ── */}
           {mode === "url" && (
             <div className="space-y-4">
               <p className="text-sm text-gray-500">
@@ -828,10 +820,8 @@ export default function ApplicantsPage() {
         </div>
       </section>
 
-      {/* ─── Applicant Database ─────────────────────────────────────────────── */}
       <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex items-center gap-3 flex-grow">
               <div className="p-2 bg-black rounded-lg">
@@ -850,30 +840,9 @@ export default function ApplicantsPage() {
               </div>
             </div>
 
-            {/* Toolbar */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Force re-sync: refetch all + rebuild structuredProfile from raw for every applicant */}
               <button
-                onClick={async () => {
-                  try {
-                    setStatus({ type: "info", text: "Force-syncing all profiles from raw source data…" });
-                    const result = await refetch();
-                    const all = result.data ?? [];
-                    let rebuilt = 0;
-                    for (const app of all) {
-                      const raw = (app as any).profileData?.raw as Record<string, unknown> | undefined;
-                      if (raw) {
-                        const freshProfile = buildStructuredProfile(raw);
-                        await updateApplicant({ id: app._id, data: { ...app, structuredProfile: freshProfile } }).unwrap();
-                        rebuilt++;
-                      }
-                    }
-                    await refetch();
-                    setStatus({ type: "success", text: `Re-synced ${rebuilt} profile(s) from source data.` });
-                  } catch (error) {
-                    setStatus({ type: "error", text: getErrorMessage(error, "Force re-sync failed.") });
-                  }
-                }}
+                onClick={handleForceResync}
                 title="Rebuild every profile's structuredProfile from its original raw source data"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition"
               >
@@ -915,7 +884,6 @@ export default function ApplicantsPage() {
             </div>
           </div>
 
-          {/* Search + Filter bar */}
           <div className="flex flex-col sm:flex-row gap-2 mt-4">
             <div className="relative flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -946,7 +914,6 @@ export default function ApplicantsPage() {
           </div>
         </div>
 
-        {/* Duplicates alert panel */}
         {showDuplicates && duplicateGroups.size > 0 && (
           <div className="mx-6 mt-4 rounded-xl border border-yellow-200 bg-yellow-50 p-4 space-y-3">
             <p className="text-sm font-semibold text-yellow-900 flex items-center gap-2">
@@ -981,9 +948,8 @@ export default function ApplicantsPage() {
           </div>
         )}
 
-        {/* Select All bar (only when there are results) */}
         {filteredApplicants.length > 0 && (
-          <div className="flex items-center gap-3 px-6 py-3 border-b border-gray-50 bg-gray-50/50">
+          <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-gray-50 bg-gray-50/50">
             <input
               type="checkbox"
               checked={selectedCheckboxes.size === filteredApplicants.length && filteredApplicants.length > 0}
@@ -998,8 +964,7 @@ export default function ApplicantsPage() {
           </div>
         )}
 
-        {/* Applicant List */}
-        <div className="px-4 py-4 space-y-2">
+        <div className="p-2 sm:p-4 space-y-2">
           {applicantsLoading && (
             <div className="flex flex-col gap-2">
               {[1, 2, 3].map((n) => (
@@ -1033,42 +998,15 @@ export default function ApplicantsPage() {
               isSelected={selectedCheckboxes.has(applicant._id)}
               onCheckboxChange={handleCheckboxChange}
               onView={async () => {
-                // Show immediately with cached data (instant UI response)
                 setModalApplicant(applicant);
                 setModalOpen(true);
-                // Force-fetch fresh data from server and update modal
                 try {
                   const result = await refetch();
                   const freshApp = result.data?.find((a) => a._id === applicant._id);
                   if (freshApp) setModalApplicant(freshApp as Applicant);
-                } catch {
-                  // Modal already open with cached data — that's fine
-                }
+                } catch {}
               }}
-              onEdit={async (app) => {
-                setEditingId(app._id);
-                setMode("json");
-
-                // Force-fetch latest data from server first
-                let freshApp: Applicant = app;
-                try {
-                  const result = await refetch();
-                  freshApp = (result.data?.find((a) => a._id === app._id) as Applicant) ?? app;
-                } catch {
-                  // Fall back to cached data
-                }
-
-                // Prefer rebuilding from the original raw source data so nothing
-                // that was in the source file (experience, languages, certs, projects)
-                // gets silently dropped by a stale structuredProfile in the DB.
-                const raw = (freshApp as any).profileData?.raw as Record<string, unknown> | undefined;
-                const profile = raw
-                  ? buildStructuredProfile(raw)
-                  : ((freshApp.structuredProfile as object) ?? freshApp);
-
-                setJsonValue(JSON.stringify(profile, null, 2));
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+              onEdit={handleEdit}
               onDelete={async (app) => {
                 try {
                   await deleteApplicant(app._id).unwrap();
@@ -1084,7 +1022,6 @@ export default function ApplicantsPage() {
         </div>
       </section>
 
-      {/* ─── Applicant Detail Modal ─────────────────────────────────────────── */}
       <ApplicantDetailModal
         applicant={modalApplicant}
         isOpen={modalOpen}
