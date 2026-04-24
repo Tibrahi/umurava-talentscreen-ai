@@ -1,16 +1,15 @@
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextPlugin from "eslint-plugin-next";
+import nextPlugin from "@next/eslint-plugin-next";
 
-// Flat config is intentionally minimal to stay stable with the installed toolchain.
-// CI can still enforce stronger rules by extending this baseline later.
-export default defineConfig([
+export default ([
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
   {
     plugins: {
-      next: nextPlugin,
+      "@next/next": nextPlugin,
     },
     rules: {
       ...nextPlugin.configs.recommended.rules,
+      // your custom rules
     },
   },
 ]);

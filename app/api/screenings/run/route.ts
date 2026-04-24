@@ -64,15 +64,27 @@ export async function POST(req: Request) {
     screening.status = "completed";
     screening.rankedCandidates = aiResult.shortlist
       .filter((candidate) => mongoose.Types.ObjectId.isValid(candidate.candidateId))
-      .map((candidate, index) => ({
-        applicantId: new mongoose.Types.ObjectId(candidate.candidateId),
-        rank: candidate.rank || index + 1,
-        matchScore: Math.max(0, Math.min(100, candidate.matchScore)),
-        strengths: candidate.strengths ?? [],
-        gapsAndRisks: candidate.gaps ?? [],
-        explanation: candidate.explanation ?? "",
-        recommendation: candidate.recommendation ?? "Consider",
-      }));
+      .map((candidate, index) => {
+        // Fix: Use the correct property name from ShortlistItem.
+        // If your ShortlistItem type does NOT have 'gaps', but has 'gapsAndRisks', use that.
+        // If it has neither, fallback to an empty array.
+        let gapsValue: string[] = [];
+        if ("gapsAndRisks" in candidate) {
+          gapsValue = candidate.gapsAndRisks ?? [];
+        } else if ("gaps" in candidate) {
+          gapsValue = (candidate as any).gaps ?? [];
+        }
+
+        return {
+          applicantId: new mongoose.Types.ObjectId(candidate.candidateId),
+          rank: candidate.rank || index + 1,
+          matchScore: Math.max(0, Math.min(100, candidate.matchScore)),
+          strengths: candidate.strengths ?? [],
+          gapsAndRisks: gapsValue,
+          explanation: candidate.explanation ?? "",
+          recommendation: candidate.recommendation ?? "Consider",
+        };
+      });
     await screening.save();
 
     const updated = await ScreeningResultModel.findById(screening._id).lean();
